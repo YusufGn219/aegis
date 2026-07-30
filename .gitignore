@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+logs/*.jsonl
+workspace_sandbox/Downloads/*
+workspace_sandbox/Arşiv/*
+workspace_sandbox/Belgeler/*
+!workspace_sandbox/**/.gitkeep
+.pytest_cache/
