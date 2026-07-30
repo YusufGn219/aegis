@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from aegis.logging_.event_log import StructuredLogger
+from aegis.tools.base import ToolResult
+
+
+class Agent(ABC):
+    name: str
+
+    @abstractmethod
+    def handle(self, user_message: str, request_id: str, logger: StructuredLogger) -> ToolResult: ...
