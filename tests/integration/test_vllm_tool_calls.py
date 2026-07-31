@@ -22,6 +22,9 @@ from aegis.llm.prompt_builder import assemble_named_request, assemble_request
 from aegis.logging_.event_log import StructuredLogger
 from aegis.skills.workspace_organizer_skill import WorkspaceOrganizerSkill
 from aegis.tools.base import ToolContext
+from aegis.tools.copy_file_tool import CopyFileTool
+from aegis.tools.create_folder_tool import CreateFolderTool
+from aegis.tools.delete_file_tool import DeleteFileTool
 from aegis.tools.list_files_tool import ListFilesTool
 from aegis.tools.move_file_tool import MoveFileTool
 from aegis.tools.send_email_tool import SendEmailTool
@@ -30,7 +33,14 @@ pytestmark = pytest.mark.integration
 
 
 def _all_tools():
-    return [ListFilesTool(), MoveFileTool(), SendEmailTool()]
+    return [
+        ListFilesTool(),
+        MoveFileTool(),
+        SendEmailTool(),
+        CopyFileTool(),
+        DeleteFileTool(),
+        CreateFolderTool(),
+    ]
 
 
 def test_move_file_enum_constrained_no_hallucination():
@@ -107,6 +117,59 @@ def test_named_call_forces_yok_when_slot_missing():
     assert message.tool_calls
     args = json.loads(message.tool_calls[0].function.arguments)
     assert args["source"] == "YOK"
+
+
+def test_copy_file_selected_over_move_file_by_verb():
+    """copy_file, move_file ile ayni slot seklini (source+destination)
+    paylasiyor - extraction bu ikisini nesnelerden ayiramaz, tek ayirt
+    edici sey FIILDIR ("kopyala" vs "tasi"). Bu, LLM'in sinifladirma
+    gorevinde guvenilir oldugunu (bkz. 01 notu) dogrudan test eder."""
+    prompt = "rapor.pdf dosyasini Arsiv klasorune kopyala."
+    candidates = extract_candidates(prompt)
+    ctx = ToolContext(sandbox_root="workspace_sandbox", candidates=candidates)
+    request = assemble_request(prompt, _all_tools(), ctx)
+
+    response = llm_client.call_for_tool_selection(request)
+    message = response.choices[0].message
+
+    assert message.tool_calls, "LLM tool cagirmadi"
+    assert message.tool_calls[0].function.name == "copy_file"
+
+
+def test_delete_file_named_call_forces_yok_when_slot_missing():
+    """delete_file HIGH risk - dosya adi belirtilmemis bir silme isteginde
+    isimlendirilmis (named) tool_choice ile 'target' icin enum tek elemanli
+    (['YOK']) olmali ve model baska bir sey uretememeli."""
+    prompt = "Bir dosyayi sil."
+    candidates = extract_candidates(prompt)
+    ctx = ToolContext(sandbox_root="workspace_sandbox", candidates=candidates)
+    assert candidates.filenames == []
+
+    request = assemble_named_request(prompt, DeleteFileTool(), ctx)
+    response = llm_client.call_for_tool_selection(request)
+    message = response.choices[0].message
+
+    assert message.tool_calls
+    args = json.loads(message.tool_calls[0].function.arguments)
+    assert args["target"] == "YOK"
+
+
+def test_create_folder_selected_and_named_returns_folder_name():
+    prompt = "Yedek klasoru olustur."
+    candidates = extract_candidates(prompt)
+    ctx = ToolContext(sandbox_root="workspace_sandbox", candidates=candidates)
+    request = assemble_request(prompt, _all_tools(), ctx)
+
+    response = llm_client.call_for_tool_selection(request)
+    message = response.choices[0].message
+
+    assert message.tool_calls, "LLM tool cagirmadi"
+    assert message.tool_calls[0].function.name == "create_folder"
+
+    named_request = assemble_named_request(prompt, CreateFolderTool(), ctx)
+    named_response = llm_client.call_for_tool_selection(named_request)
+    named_args = json.loads(named_response.choices[0].message.tool_calls[0].function.arguments)
+    assert named_args["folder_name"] == "Yedek"
 
 
 def test_skill_two_step_flow_prevents_hallucinated_move(tmp_path, monkeypatch):

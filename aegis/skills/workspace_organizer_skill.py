@@ -19,6 +19,9 @@ from aegis.permission.engine import PermissionEngine
 from aegis.resolution.path_resolver import PathResolver, ResolutionStatus, YOK
 from aegis.skills.base import Skill
 from aegis.tools.base import Tool, ToolContext, ToolResult
+from aegis.tools.copy_file_tool import CopyFileTool
+from aegis.tools.create_folder_tool import CreateFolderTool
+from aegis.tools.delete_file_tool import DeleteFileTool
 from aegis.tools.list_files_tool import ListFilesTool
 from aegis.tools.move_file_tool import MoveFileTool
 from aegis.tools.send_email_tool import SendEmailTool
@@ -48,7 +51,14 @@ class WorkspaceOrganizerSkill(Skill):
     name = "workspace_organizer"
 
     def __init__(self):
-        self.tools: list[Tool] = [ListFilesTool(), MoveFileTool(), SendEmailTool()]
+        self.tools: list[Tool] = [
+            ListFilesTool(),
+            MoveFileTool(),
+            SendEmailTool(),
+            CopyFileTool(),
+            DeleteFileTool(),
+            CreateFolderTool(),
+        ]
         self.permission_engine = PermissionEngine()
 
     def run(
