@@ -60,6 +60,33 @@ SCENARIOS: list[tuple[str, str | None, list[str], bool]] = [
     ("Bugun hava nasil?", None, [], False),
     ("Yarin ne yapmaliyim?", None, [], False),
     ("Bir dosyayi Arsiv klasorune tasi.", "move_file", ["y"], False),
+    # --- Notes / Calendar (notes_agent, calendar_agent) ---
+    (
+        "'Alisveris listesi' basligiyla 'sut, ekmek, yumurta' icerikli bir not yaz.",
+        "create_note",
+        ["y"],
+        True,
+    ),
+    ("Notlarimi listele.", "list_notes", [], True),
+    ("15.08.2026 tarihinde 'Toplanti' etkinligi ekle.", "add_event", ["y"], True),
+    ("20.09.2026 tarihinde 'Doktor randevusu' ekle.", "add_event", ["y"], True),
+    ("Etkinliklerimi listele.", "list_events", [], True),
+    # Mesajda hicbir aday yok - "Bir dosyayi sil." ile ayni desen (model
+    # tahmin etmek yerine tool cagirmiyor).
+    ("Bir not yaz.", None, [], False),
+    # "olustur" hem workspace'in (create_folder) hem notes'un (create_note)
+    # dogal fiili - agent_router bunu belirsiz sayip LLM'e birakir (bkz.
+    # tests/integration/test_multi_agent_routing.py). Bu senaryo LLM-
+    # fallback routing yolunu da loglara ekler.
+    (
+        "'Alisveris listesi' basligiyla 'sut, ekmek' icerikli bir not olustur.",
+        "create_note",
+        ["y"],
+        True,
+    ),
+    # Mesajda hicbir aday yok (ne baslik ne tarih) - "Bir dosyayi sil."/
+    # "Bir not yaz." ile ayni guvenli-red deseni.
+    ("Bir etkinlik ekle.", None, [], False),
 ]
 
 SEED_FOLDERS = ["Downloads", "Arşiv", "Belgeler"]
@@ -72,7 +99,10 @@ SEED_FILES = {
 
 def _seed(sandbox_root: Path) -> None:
     """seed_sandbox.py ile ayni mantik - her senaryodan once sifirdan
-    kurulur, boylece senaryolar birbirinden bagimsiz (sira onemsiz) olur."""
+    kurulur, boylece senaryolar birbirinden bagimsiz (sira onemsiz) olur.
+    Notes/Calendar tool'larinin yazdigi Notlar/ ve calendar.json da (varsa,
+    onceki senaryolardan kalma) temizlenir - aksi halde ayni basligi
+    kullanan iki senaryo yapay bir "zaten var" carpismasi yasar."""
     for folder in SEED_FOLDERS:
         path = sandbox_root / folder
         if path.exists():
@@ -80,6 +110,13 @@ def _seed(sandbox_root: Path) -> None:
         path.mkdir(parents=True)
     for rel_path, content in SEED_FILES.items():
         (sandbox_root / rel_path).write_text(content, encoding="utf-8")
+
+    notes_dir = sandbox_root / "Notlar"
+    if notes_dir.exists():
+        shutil.rmtree(notes_dir)
+    calendar_path = sandbox_root / "calendar.json"
+    if calendar_path.exists():
+        calendar_path.unlink()
 
 
 def _fake_input_queue(answers: list[str]):

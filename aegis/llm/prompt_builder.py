@@ -72,3 +72,43 @@ def assemble_named_request(user_message: str, tool: Tool, ctx: ToolContext) -> d
         "tool_choice": {"type": "function", "function": {"name": tool.name}},
         "temperature": 0,
     }
+
+
+ROUTING_PROMPT = (
+    "Sen bir istek yonlendiricisisin. Kullanicinin mesajini, verilen "
+    "agent'lardan (workspace_agent: dosya/klasor islemleri ve e-posta, "
+    "notes_agent: not olusturma/listeleme, calendar_agent: etkinlik/takvim) "
+    "TAM OLARAK hangisinin ele almasi gerektigine karar ver ve 'route' "
+    "fonksiyonunu o agent adiyla cagir."
+)
+
+
+def assemble_routing_request(user_message: str, agent_names: list[str]) -> dict:
+    """Coordinator seviyesinde, hangi Agent'in mesaji ele alacagina karar
+    vermek icin. tool_choice ISIMLENDIRILMIS ('route' fonksiyonu zorlanir)
+    - assemble_named_request ile ayni guided-decoding garantisi: donen
+    'agent' degeri agent_names disina CIKAMAZ."""
+    schema = {
+        "type": "function",
+        "function": {
+            "name": "route",
+            "description": "Mesaji ele alacak agent'i secer.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "agent": {"type": "string", "enum": agent_names},
+                },
+                "required": ["agent"],
+            },
+        },
+    }
+    return {
+        "model": config.MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": ROUTING_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+        "tools": [schema],
+        "tool_choice": {"type": "function", "function": {"name": "route"}},
+        "temperature": 0,
+    }

@@ -10,6 +10,7 @@ tests/integration/test_vllm_tool_calls.py."""
 import aegis.config as config
 from aegis.logging_.event_log import StructuredLogger
 from aegis.skills.workspace_organizer_skill import WorkspaceOrganizerSkill
+from tests.unit.conftest import fake_tool_call_response
 
 
 def _make_sandbox(tmp_path):
@@ -20,39 +21,13 @@ def _make_sandbox(tmp_path):
     return tmp_path
 
 
-def _fake_tool_call_response(tool_name: str, arguments_json: str):
-    class _FakeFunction:
-        name = tool_name
-        arguments = arguments_json
-
-    class _FakeToolCall:
-        function = _FakeFunction()
-
-    class _FakeMessage:
-        tool_calls = [_FakeToolCall()]
-        content = None
-
-    class _FakeChoice:
-        message = _FakeMessage()
-
-    class _FakeUsage:
-        prompt_tokens = 10
-        completion_tokens = 5
-
-    class _FakeResponse:
-        choices = [_FakeChoice()]
-        usage = _FakeUsage()
-
-    return _FakeResponse()
-
-
 def test_move_file_via_llm_mocked_moves_file(tmp_path, monkeypatch):
     sandbox = _make_sandbox(tmp_path)
     monkeypatch.setattr(config, "SANDBOX_ROOT", sandbox)
     monkeypatch.setattr("builtins.input", lambda _: "y")
     monkeypatch.setattr(
-        "aegis.skills.workspace_organizer_skill.llm_client.call_for_tool_selection",
-        lambda _request: _fake_tool_call_response(
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
+        lambda _request: fake_tool_call_response(
             "move_file", '{"source": "rapor.pdf", "destination": "Arsiv"}'
         ),
     )
@@ -71,8 +46,8 @@ def test_move_file_via_llm_mocked_declined_permission_does_not_move(tmp_path, mo
     monkeypatch.setattr(config, "SANDBOX_ROOT", sandbox)
     monkeypatch.setattr("builtins.input", lambda _: "n")
     monkeypatch.setattr(
-        "aegis.skills.workspace_organizer_skill.llm_client.call_for_tool_selection",
-        lambda _request: _fake_tool_call_response(
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
+        lambda _request: fake_tool_call_response(
             "move_file", '{"source": "rapor.pdf", "destination": "Arsiv"}'
         ),
     )
@@ -90,8 +65,8 @@ def test_copy_file_via_llm_mocked_copies_file_leaving_source(tmp_path, monkeypat
     monkeypatch.setattr(config, "SANDBOX_ROOT", sandbox)
     monkeypatch.setattr("builtins.input", lambda _: "y")
     monkeypatch.setattr(
-        "aegis.skills.workspace_organizer_skill.llm_client.call_for_tool_selection",
-        lambda _request: _fake_tool_call_response(
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
+        lambda _request: fake_tool_call_response(
             "copy_file", '{"source": "rapor.pdf", "destination": "Arsiv"}'
         ),
     )
@@ -114,7 +89,7 @@ def test_delete_file_skip_llm_removes_file(tmp_path, monkeypatch):
         raise AssertionError("Bu senaryoda LLM'e hic gidilmemeliydi (skip_llm=True bekleniyordu)")
 
     monkeypatch.setattr(
-        "aegis.skills.workspace_organizer_skill.llm_client.call_for_tool_selection",
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
         fail_if_llm_called,
     )
 
@@ -131,7 +106,7 @@ def test_delete_file_skip_llm_declined_permission_does_not_delete(tmp_path, monk
     monkeypatch.setattr(config, "SANDBOX_ROOT", sandbox)
     monkeypatch.setattr("builtins.input", lambda _: "n")
     monkeypatch.setattr(
-        "aegis.skills.workspace_organizer_skill.llm_client.call_for_tool_selection",
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
         lambda _request: (_ for _ in ()).throw(
             AssertionError("Bu senaryoda LLM'e hic gidilmemeliydi")
         ),
@@ -157,8 +132,8 @@ def test_create_folder_via_llm_mocked_creates_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SANDBOX_ROOT", sandbox)
     monkeypatch.setattr("builtins.input", lambda _: "y")
     monkeypatch.setattr(
-        "aegis.skills.workspace_organizer_skill.llm_client.call_for_tool_selection",
-        lambda _request: _fake_tool_call_response("create_folder", '{"folder_name": "Yedek"}'),
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
+        lambda _request: fake_tool_call_response("create_folder", '{"folder_name": "Yedek"}'),
     )
 
     skill = WorkspaceOrganizerSkill()
@@ -191,7 +166,7 @@ def test_no_relevant_candidates_still_reaches_llm_and_llm_is_mocked(tmp_path, mo
         usage = _FakeUsage()
 
     monkeypatch.setattr(
-        "aegis.skills.workspace_organizer_skill.llm_client.call_for_tool_selection",
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
         lambda _request: _FakeResponse(),
     )
 

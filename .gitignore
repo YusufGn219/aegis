@@ -4,6 +4,7 @@ __pycache__/
 venv/
 .env
 logs/*.jsonl
+data/finetune/*.jsonl
 workspace_sandbox/Downloads/*
 workspace_sandbox/Arşiv/*
 workspace_sandbox/Belgeler/*

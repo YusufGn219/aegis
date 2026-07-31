@@ -30,6 +30,9 @@ EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 FILENAME_RE = re.compile(r"\b[\w\-]+\.\w{1,5}\b")
 FOLDER_RE = re.compile(r"(\w+)\s+klas[oö]r\w*", re.IGNORECASE)
 FOLDER_EN_RE = re.compile(r"(\w+)\s+(?:folder|directory)", re.IGNORECASE)
+# Sadece "GG.AA.YYYY" sayisal kalibi (orn. "15.08.2026") - ayristirma/
+# dogrulama YAPILMAZ, ham metin oldugu gibi tutulur (calendar Skill'i icin).
+DATE_RE = re.compile(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b")
 
 
 def normalize(text: str) -> str:
@@ -47,6 +50,7 @@ class Candidates:
     emails: list[str] = field(default_factory=list)
     filenames: list[str] = field(default_factory=list)
     folder_names: list[str] = field(default_factory=list)
+    dates: list[str] = field(default_factory=list)
     raw_text: str = ""
 
 
@@ -74,11 +78,13 @@ def extract_candidates(text: str) -> Candidates:
     )
 
     folder_names = _dedupe_preserve_order(FOLDER_RE.findall(text) + FOLDER_EN_RE.findall(text))
+    dates = _dedupe_preserve_order(DATE_RE.findall(text))
 
     return Candidates(
         quoted_spans=quoted_spans,
         emails=emails,
         filenames=filenames,
         folder_names=folder_names,
+        dates=dates,
         raw_text=text,
     )

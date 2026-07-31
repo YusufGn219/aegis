@@ -1,5 +1,5 @@
-"""Dosya-sistemi islemleri Skill'i - ince sarmalayici, asil orkestrasyon
-tool_selection_engine.run_tool_selection()'da (NotesSkill/CalendarSkill ile
+"""Not olusturma/listeleme Skill'i - ince sarmalayici, asil orkestrasyon
+tool_selection_engine.run_tool_selection()'da (WorkspaceOrganizerSkill ile
 paylasilan ortak motor)."""
 
 from __future__ import annotations
@@ -9,26 +9,15 @@ from aegis.permission.engine import PermissionEngine
 from aegis.skills.base import Skill
 from aegis.skills.tool_selection_engine import run_tool_selection
 from aegis.tools.base import Tool, ToolResult
-from aegis.tools.copy_file_tool import CopyFileTool
-from aegis.tools.create_folder_tool import CreateFolderTool
-from aegis.tools.delete_file_tool import DeleteFileTool
-from aegis.tools.list_files_tool import ListFilesTool
-from aegis.tools.move_file_tool import MoveFileTool
-from aegis.tools.send_email_tool import SendEmailTool
+from aegis.tools.create_note_tool import CreateNoteTool
+from aegis.tools.list_notes_tool import ListNotesTool
 
 
-class WorkspaceOrganizerSkill(Skill):
-    name = "workspace_organizer"
+class NotesSkill(Skill):
+    name = "notes"
 
     def __init__(self):
-        self.tools: list[Tool] = [
-            ListFilesTool(),
-            MoveFileTool(),
-            SendEmailTool(),
-            CopyFileTool(),
-            DeleteFileTool(),
-            CreateFolderTool(),
-        ]
+        self.tools: list[Tool] = [CreateNoteTool(), ListNotesTool()]
         self.permission_engine = PermissionEngine()
 
     def run(
