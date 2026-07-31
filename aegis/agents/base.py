@@ -10,4 +10,11 @@ class Agent(ABC):
     name: str
 
     @abstractmethod
-    def handle(self, user_message: str, request_id: str, logger: StructuredLogger) -> ToolResult: ...
+    def handle(
+        self,
+        user_message: str,
+        request_id: str,
+        logger: StructuredLogger,
+        session_id: str | None = None,
+        turn_index: int | None = None,
+    ) -> ToolResult: ...

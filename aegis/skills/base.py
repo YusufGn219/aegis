@@ -10,4 +10,11 @@ class Skill(ABC):
     name: str
 
     @abstractmethod
-    def run(self, user_message: str, request_id: str, logger: StructuredLogger) -> ToolResult: ...
+    def run(
+        self,
+        user_message: str,
+        request_id: str,
+        logger: StructuredLogger,
+        session_id: str | None = None,
+        turn_index: int | None = None,
+    ) -> ToolResult: ...

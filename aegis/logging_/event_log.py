@@ -15,7 +15,7 @@ from aegis import config
 @dataclass
 class LogEvent:
     request_id: str
-    step: str  # "extraction" | "invocation_decision" | "llm_call" | "path_resolution" | "permission" | "tool_execute"
+    step: str  # "session_start" | "extraction" | "invocation_decision" | "llm_call" | "path_resolution" | "permission" | "tool_execute" | "feedback"
     ts: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     agent: str | None = None
     skill: str | None = None
@@ -27,6 +27,18 @@ class LogEvent:
     decision: str = ""
     success: bool | None = None
     extra: dict | None = None
+    # Fine-tuning veri toplama icin eklenen alanlar (hepsi opsiyonel - eski
+    # loglarla geriye donuk uyumluluk bozulmaz). system_prompt/prompt_version/
+    # tool_schemas_sent/raw_completion SADECE "llm_call" step'inde doldurulur;
+    # diger step'lerde tekrari onlemek icin None birakilir.
+    raw_user_message: str | None = None
+    system_prompt: str | None = None
+    prompt_version: str | None = None
+    tool_schemas_sent: list[dict] | None = None
+    raw_completion: str | None = None
+    session_id: str | None = None
+    turn_index: int | None = None
+    user_feedback: str | None = None
 
 
 class StructuredLogger:

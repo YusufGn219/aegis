@@ -13,7 +13,7 @@ from aegis import config
 from aegis.decision import invocation_policy
 from aegis.extraction.candidates import extract_candidates
 from aegis.llm import client as llm_client
-from aegis.llm.prompt_builder import assemble_request
+from aegis.llm.prompt_builder import PROMPT_VERSION, assemble_named_request, assemble_request
 from aegis.logging_.event_log import LogEvent, StructuredLogger, Timer
 from aegis.permission.engine import PermissionEngine
 from aegis.resolution.path_resolver import PathResolver, ResolutionStatus, YOK
@@ -24,6 +24,15 @@ from aegis.tools.move_file_tool import MoveFileTool
 from aegis.tools.send_email_tool import SendEmailTool
 
 MAX_RESOLUTION_RETRIES = 2
+
+
+def _serialize_message(message) -> str:
+    """LLM'in ham completion mesajini fine-tuning export'u icin JSON metne
+    cevirir. Pydantic modeliyse model_dump() kullanilir, degilse str()."""
+    try:
+        return json.dumps(message.model_dump(), ensure_ascii=False)
+    except Exception:
+        return str(message)
 
 
 def _tool_is_fully_evidenced(tool: Tool, ctx: ToolContext) -> bool:
@@ -42,7 +51,14 @@ class WorkspaceOrganizerSkill(Skill):
         self.tools: list[Tool] = [ListFilesTool(), MoveFileTool(), SendEmailTool()]
         self.permission_engine = PermissionEngine()
 
-    def run(self, user_message: str, request_id: str, logger: StructuredLogger) -> ToolResult:
+    def run(
+        self,
+        user_message: str,
+        request_id: str,
+        logger: StructuredLogger,
+        session_id: str | None = None,
+        turn_index: int | None = None,
+    ) -> ToolResult:
         # 1) Deterministik extraction - LLM yok.
         with Timer() as t:
             candidates = extract_candidates(user_message)
@@ -55,6 +71,9 @@ class WorkspaceOrganizerSkill(Skill):
                 decision="candidates extracted",
                 success=True,
                 extra={"candidates": vars(candidates)},
+                raw_user_message=user_message,
+                session_id=session_id,
+                turn_index=turn_index,
             )
         )
 
@@ -87,6 +106,10 @@ class WorkspaceOrganizerSkill(Skill):
                         llm_invoked=not decision.skip_llm,
                         decision=decision.reason,
                         success=True,
+                        extra={"auto_resolved": decision.auto_resolved},
+                        raw_user_message=user_message,
+                        session_id=session_id,
+                        turn_index=turn_index,
                     )
                 )
                 if decision.skip_llm:
@@ -116,6 +139,13 @@ class WorkspaceOrganizerSkill(Skill):
                         duration_ms=t.duration_ms,
                         decision="LLM tool cagirmadi (red/netlestirme)",
                         success=True,
+                        raw_user_message=user_message,
+                        system_prompt=request["messages"][0]["content"],
+                        prompt_version=PROMPT_VERSION,
+                        tool_schemas_sent=request["tools"],
+                        raw_completion=_serialize_message(message),
+                        session_id=session_id,
+                        turn_index=turn_index,
                     )
                 )
                 return ToolResult(success=False, message=message.content or "(bos yanit)")
@@ -137,11 +167,60 @@ class WorkspaceOrganizerSkill(Skill):
                     tokens_prompt=tokens_prompt,
                     tokens_completion=tokens_completion,
                     duration_ms=t.duration_ms,
-                    decision="LLM tool secti",
+                    decision="LLM tool secti (auto, semasiz)",
                     success=tool is not None,
-                    extra={"raw_args": raw_args},
+                    extra={"phase": "tool_selection", "raw_args": raw_args},
+                    raw_user_message=user_message,
+                    system_prompt=request["messages"][0]["content"],
+                    prompt_version=PROMPT_VERSION,
+                    tool_schemas_sent=request["tools"],
+                    raw_completion=_serialize_message(message),
+                    session_id=session_id,
+                    turn_index=turn_index,
                 )
             )
+
+            if tool is not None:
+                # tool_choice="auto" ile guided decoding UYGULANMAZ (vLLM
+                # 0.26.0'da dogrulandi, bkz. prompt_builder.py docstring) -
+                # yukaridaki raw_args enum disina cikmis olabilir. Simdi ayni
+                # tool icin ISIMLENDIRILMIS tool_choice ile ikinci bir cagri
+                # yapip argumanlari GERCEKTEN enum-kisitli uretiyoruz.
+                named_request = assemble_named_request(user_message, tool, ctx)
+                with Timer() as t2:
+                    named_response = llm_client.call_for_tool_selection(named_request)
+                named_tokens_prompt = getattr(named_response.usage, "prompt_tokens", None)
+                named_tokens_completion = getattr(named_response.usage, "completion_tokens", None)
+                named_message = named_response.choices[0].message
+
+                if named_message.tool_calls:
+                    try:
+                        raw_args = json.loads(named_message.tool_calls[0].function.arguments)
+                    except json.JSONDecodeError:
+                        raw_args = {}
+
+                logger.log(
+                    LogEvent(
+                        request_id=request_id,
+                        step="llm_call",
+                        skill=self.name,
+                        tool=tool.name,
+                        llm_invoked=True,
+                        tokens_prompt=named_tokens_prompt,
+                        tokens_completion=named_tokens_completion,
+                        duration_ms=t2.duration_ms,
+                        decision="LLM argumanlari sema-kisitli uretti (named)",
+                        success=bool(named_message.tool_calls),
+                        extra={"phase": "argument_binding", "raw_args": raw_args},
+                        raw_user_message=user_message,
+                        system_prompt=named_request["messages"][0]["content"],
+                        prompt_version=PROMPT_VERSION,
+                        tool_schemas_sent=named_request["tools"],
+                        raw_completion=_serialize_message(named_message),
+                        session_id=session_id,
+                        turn_index=turn_index,
+                    )
+                )
 
         if tool is None:
             return ToolResult(success=False, message="LLM bilinmeyen bir tool secti.")
@@ -176,6 +255,8 @@ class WorkspaceOrganizerSkill(Skill):
                 llm_invoked=llm_invoked,
                 decision="onaylandi" if permitted else "reddedildi",
                 success=permitted,
+                session_id=session_id,
+                turn_index=turn_index,
             )
         )
         if not permitted:
@@ -194,6 +275,8 @@ class WorkspaceOrganizerSkill(Skill):
                 duration_ms=t.duration_ms,
                 decision=result.message,
                 success=result.success,
+                session_id=session_id,
+                turn_index=turn_index,
             )
         )
         return result

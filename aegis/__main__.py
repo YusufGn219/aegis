@@ -8,7 +8,27 @@ import sys
 import uuid
 
 from aegis.coordinator.coordinator import Coordinator
-from aegis.logging_.event_log import StructuredLogger
+from aegis.logging_.event_log import LogEvent, StructuredLogger
+
+
+def _collect_feedback(logger: StructuredLogger, request_id: str) -> None:
+    """Fine-tuning veri setinde ornekleri etiketlemek icin: kullaniciya
+    sonucun dogru olup olmadigini sorar, opsiyoneldir (bos/'skip' gecilebilir)."""
+    try:
+        answer = input("Bu dogru muydu? (e/h/skip): ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return
+    if answer not in ("e", "h"):
+        return
+    logger.log(
+        LogEvent(
+            request_id=request_id,
+            step="feedback",
+            decision="kullanici geri bildirimi",
+            success=True,
+            user_feedback="dogru" if answer == "e" else "yanlis",
+        )
+    )
 
 
 def main() -> None:
@@ -24,6 +44,7 @@ def main() -> None:
     result = coordinator.route(user_message, request_id, logger)
 
     print(result.message)
+    _collect_feedback(logger, request_id)
     sys.exit(0 if result.success else 1)
 
 

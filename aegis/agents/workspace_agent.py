@@ -18,9 +18,16 @@ class WorkspaceAgent(Agent):
     def __init__(self):
         self.skills = [WorkspaceOrganizerSkill()]
 
-    def handle(self, user_message: str, request_id: str, logger: StructuredLogger) -> ToolResult:
+    def handle(
+        self,
+        user_message: str,
+        request_id: str,
+        logger: StructuredLogger,
+        session_id: str | None = None,
+        turn_index: int | None = None,
+    ) -> ToolResult:
         # Tek Skill oldugu icin secim trivial; ileride birden fazla Skill
         # olunca burada (invocation_policy'ye benzer sekilde) deterministik-
         # once, LLM-gerekirse yaklasimi uygulanacak.
         skill = self.skills[0]
-        return skill.run(user_message, request_id, logger)
+        return skill.run(user_message, request_id, logger, session_id, turn_index)

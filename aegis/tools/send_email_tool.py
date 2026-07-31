@@ -21,8 +21,16 @@ class SendEmailTool(Tool):
                 "type": "object",
                 "properties": {
                     "to": {"type": "string", "enum": email_enum, "description": "Alici adresi. Yoksa YOK."},
-                    "subject": {"type": "string", "enum": text_enum, "description": "Konu. Yoksa YOK."},
-                    "body": {"type": "string", "enum": text_enum, "description": "Govde. Yoksa YOK."},
+                    "subject": {
+                        "type": "string",
+                        "enum": text_enum,
+                        "description": "Konu (mesajdaki ILK tirnakli ifade). Yoksa YOK.",
+                    },
+                    "body": {
+                        "type": "string",
+                        "enum": text_enum,
+                        "description": "Govde (mesajdaki IKINCI tirnakli ifade). Yoksa YOK.",
+                    },
                 },
                 "required": ["to", "subject", "body"],
             },
