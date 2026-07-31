@@ -33,6 +33,17 @@ FOLDER_EN_RE = re.compile(r"(\w+)\s+(?:folder|directory)", re.IGNORECASE)
 # Sadece "GG.AA.YYYY" sayisal kalibi (orn. "15.08.2026") - ayristirma/
 # dogrulama YAPILMAZ, ham metin oldugu gibi tutulur (calendar Skill'i icin).
 DATE_RE = re.compile(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b")
+# Sadece "SS:DD" sayisal kalibi (orn. "14:30") - ayristirma/dogrulama
+# YAPILMAZ, ham metin oldugu gibi tutulur.
+TIME_RE = re.compile(r"\b\d{1,2}:\d{2}\b")
+# Diger alanlardan farkli olarak ham metin DEGIL, sabit 3 kategoriden
+# birine normalize edilir (tekrar sikligi dogasi geregi kategorik) - ama
+# yine de kullanicinin GERCEKTEN yazdigi bir ifadeye dayanir, uydurma yok.
+RECURRENCE_PATTERNS: dict[str, re.Pattern] = {
+    "gunluk": re.compile(r"her\s+g[uü]n|g[uü]nl[uü]k", re.IGNORECASE),
+    "haftalik": re.compile(r"her\s+hafta|haftal[iı]k", re.IGNORECASE),
+    "aylik": re.compile(r"her\s+ay|ayl[iı]k", re.IGNORECASE),
+}
 
 
 def normalize(text: str) -> str:
@@ -51,6 +62,8 @@ class Candidates:
     filenames: list[str] = field(default_factory=list)
     folder_names: list[str] = field(default_factory=list)
     dates: list[str] = field(default_factory=list)
+    times: list[str] = field(default_factory=list)
+    recurrences: list[str] = field(default_factory=list)
     raw_text: str = ""
 
 
@@ -79,6 +92,10 @@ def extract_candidates(text: str) -> Candidates:
 
     folder_names = _dedupe_preserve_order(FOLDER_RE.findall(text) + FOLDER_EN_RE.findall(text))
     dates = _dedupe_preserve_order(DATE_RE.findall(text))
+    times = _dedupe_preserve_order(TIME_RE.findall(text))
+    recurrences = _dedupe_preserve_order(
+        [tag for tag, pattern in RECURRENCE_PATTERNS.items() if pattern.search(text)]
+    )
 
     return Candidates(
         quoted_spans=quoted_spans,
@@ -86,5 +103,7 @@ def extract_candidates(text: str) -> Candidates:
         filenames=filenames,
         folder_names=folder_names,
         dates=dates,
+        times=times,
+        recurrences=recurrences,
         raw_text=text,
     )

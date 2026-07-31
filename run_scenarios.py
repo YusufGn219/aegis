@@ -87,6 +87,17 @@ SCENARIOS: list[tuple[str, str | None, list[str], bool]] = [
     # Mesajda hicbir aday yok (ne baslik ne tarih) - "Bir dosyayi sil."/
     # "Bir not yaz." ile ayni guvenli-red deseni.
     ("Bir etkinlik ekle.", None, [], False),
+    # Saat + tekrar etiketi (bkz. 08 sonrasi calendar genislemesi).
+    (
+        "15.08.2026 saat 07:30 'Spor' etkinligini haftalik olarak ekle.",
+        "add_event",
+        ["y"],
+        True,
+    ),
+    ("20.09.2026 tarihinde 'Yil donumu' etkinligini her ay ekle.", "add_event", ["y"], True),
+    # "hatirlat"/"goster" modeli karistirabiliyor (bkz. tests/integration/
+    # test_multi_agent_routing.py) - "listele" ile tutarli sekilde calisiyor.
+    ("Yaklasan etkinliklerimi listele.", "list_upcoming_events", [], True),
 ]
 
 SEED_FOLDERS = ["Downloads", "Arşiv", "Belgeler"]

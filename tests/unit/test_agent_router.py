@@ -45,3 +45,13 @@ def test_english_keyword_variants_match():
 def test_accent_insensitive_matching():
     decision = agent_router.decide("Bir hatirlatma yap.")
     assert decision.agent_name == agent_router.NOTES_AGENT
+
+
+def test_consonant_softening_inflected_form_matches():
+    # "etkinlik" + unluyle baslayan ek -> unsuz yumusamasi (k -> g):
+    # "etkinligini" koku "etkinlik" DEGIL "etkinlig" icerir.
+    decision = agent_router.decide(
+        "15.08.2026 saat 07:30 'Spor' etkinligini haftalik olarak ekle."
+    )
+    assert decision.skip_llm is True
+    assert decision.agent_name == agent_router.CALENDAR_AGENT

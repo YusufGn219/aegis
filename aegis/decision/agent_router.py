@@ -45,6 +45,11 @@ _AGENT_KEYWORDS: dict[str, list[str]] = {
     CALENDAR_AGENT: [
         "takvim",
         "etkinlik",
+        # "etkinlik" unluyle baslayan ek aldiginda unsuz yumusamasina ugrar
+        # (k -> g): "etkinligi"/"etkinligini"/"etkinlige" gibi CEKIMLI
+        # bicimlerde kok "etkinlik" DEGIL "etkinlig" olarak gecer - salt
+        # sol-sinirli prefix esleseme bunu YAKALAMAZ, ayrica eklendi.
+        "etkinlig",
         "toplanti",
         "randevu",
         "calendar",

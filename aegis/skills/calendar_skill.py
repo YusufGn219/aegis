@@ -11,13 +11,14 @@ from aegis.skills.tool_selection_engine import run_tool_selection
 from aegis.tools.add_event_tool import AddEventTool
 from aegis.tools.base import Tool, ToolResult
 from aegis.tools.list_events_tool import ListEventsTool
+from aegis.tools.list_upcoming_events_tool import ListUpcomingEventsTool
 
 
 class CalendarSkill(Skill):
     name = "calendar"
 
     def __init__(self):
-        self.tools: list[Tool] = [AddEventTool(), ListEventsTool()]
+        self.tools: list[Tool] = [AddEventTool(), ListEventsTool(), ListUpcomingEventsTool()]
         self.permission_engine = PermissionEngine()
 
     def run(

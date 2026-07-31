@@ -64,3 +64,25 @@ def test_normalize_strips_turkish_accents():
 def test_turkish_and_english_folder_mentions_dedupe_independently():
     c = extract_candidates("Arsiv klasorune tasi, sonra Downloads folder icindekileri listele.")
     assert c.folder_names == ["Arsiv", "Downloads"]
+
+
+def test_date_and_time_extraction():
+    # Not: "07:30'da" gibi Turkce kesme-eki kalibi kasitli KULLANILMIYOR -
+    # QUOTED_RE'nin kesme isaretini tirnak sanip yanlis eslesmesine yol
+    # aciyor (bilinen, bu degisiklikle ilgisiz bir extraction sinirlamasi).
+    c = extract_candidates("15.08.2026 saat 07:30 'Spor' etkinligi ekle.")
+    assert c.dates == ["15.08.2026"]
+    assert c.times == ["07:30"]
+    assert c.quoted_spans == ["Spor"]
+
+
+def test_recurrence_extraction_daily_weekly_monthly():
+    assert extract_candidates("Her gun spor yap.").recurrences == ["gunluk"]
+    assert extract_candidates("Haftalik toplanti ekle.").recurrences == ["haftalik"]
+    assert extract_candidates("Her ay fatura ode.").recurrences == ["aylik"]
+
+
+def test_no_recurrence_when_not_mentioned():
+    c = extract_candidates("15.08.2026 tarihinde 'Toplanti' etkinligi ekle.")
+    assert c.recurrences == []
+    assert c.times == []

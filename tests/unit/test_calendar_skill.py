@@ -1,10 +1,20 @@
 import json
 import os
+from datetime import date as date_cls
 
 import aegis.config as config
 from aegis.logging_.event_log import StructuredLogger
 from aegis.skills.calendar_skill import CalendarSkill
 from tests.unit.conftest import fake_tool_call_response
+
+
+class _FixedToday(date_cls):
+    """date.today() 15.08.2026'yi dondurecek sekilde sabitlenir (list_upcoming_
+    events testlerinde deterministik 'bugun' icin)."""
+
+    @classmethod
+    def today(cls):
+        return date_cls(2026, 8, 15)
 
 
 def test_add_event_via_llm_mocked_writes_calendar_json(tmp_path, monkeypatch):
@@ -24,7 +34,9 @@ def test_add_event_via_llm_mocked_writes_calendar_json(tmp_path, monkeypatch):
     assert result.success is True
     calendar_path = os.path.join(str(tmp_path), "calendar.json")
     events = json.loads(open(calendar_path, encoding="utf-8").read())
-    assert events == [{"title": "Toplanti", "date": "15.08.2026"}]
+    assert events == [
+        {"title": "Toplanti", "date": "15.08.2026", "time": None, "recurrence": None}
+    ]
 
 
 def test_add_event_declined_permission_does_not_write(tmp_path, monkeypatch):
@@ -58,3 +70,66 @@ def test_list_events_via_llm_mocked_lists_empty(tmp_path, monkeypatch):
 
     assert result.success is True
     assert result.data == {"events": []}
+
+
+def test_add_event_with_time_and_recurrence_via_llm_mocked(tmp_path, monkeypatch):
+    # Iki tirnakli ifade KASITLI - title adaylari (quoted_spans) 2 elemanli
+    # olunca invocation_policy skip_llm=False donuyor (tam 1 aday sarti
+    # bozuluyor), akis LLM'e dusuyor. Bu onemli: title/date TEK adaylik
+    # olsaydi skip_llm=True olurdu ve time/recurrence gibi OPSIYONEL
+    # alanlar - invocation_policy sadece required_slots'a baktigi icin -
+    # sessizce KAYBOLURDU (bilinen bir sinirlama, bkz. add_event_tool.py).
+    monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    monkeypatch.setattr(
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
+        lambda _request: fake_tool_call_response(
+            "add_event",
+            '{"title": "Spor", "date": "15.08.2026", "time": "07:30", "recurrence": "haftalik"}',
+        ),
+    )
+
+    skill = CalendarSkill()
+    logger = StructuredLogger(path=str(tmp_path / "events.jsonl"))
+    result = skill.run(
+        "15.08.2026 saat 07:30'da 'Spor' ya da 'Antrenman' etkinligini haftalik olarak ekle.",
+        "req-event-recurring",
+        logger,
+    )
+
+    assert result.success is True
+    calendar_path = os.path.join(str(tmp_path), "calendar.json")
+    events = json.loads(open(calendar_path, encoding="utf-8").read())
+    assert events == [
+        {"title": "Spor", "date": "15.08.2026", "time": "07:30", "recurrence": "haftalik"}
+    ]
+
+
+def test_list_upcoming_events_filters_past_events(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
+    monkeypatch.setattr("aegis.tools.list_upcoming_events_tool.date", _FixedToday)
+
+    calendar_path = tmp_path / "calendar.json"
+    calendar_path.write_text(
+        json.dumps(
+            [
+                {"title": "Gecmis", "date": "01.01.2026", "time": None, "recurrence": None},
+                {"title": "Bugun", "date": "15.08.2026", "time": None, "recurrence": None},
+                {"title": "Gelecek", "date": "20.08.2026", "time": None, "recurrence": "aylik"},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
+        lambda _request: fake_tool_call_response("list_upcoming_events", "{}"),
+    )
+
+    skill = CalendarSkill()
+    logger = StructuredLogger(path=str(tmp_path / "events.jsonl"))
+    result = skill.run("Yaklasan etkinliklerimi hatirlat.", "req-upcoming", logger)
+
+    assert result.success is True
+    titles = [e["title"] for e in result.data["events"]]
+    assert titles == ["Bugun", "Gelecek"]
