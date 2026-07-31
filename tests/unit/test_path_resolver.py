@@ -46,3 +46,23 @@ def test_not_found(sandbox):
     resolver = PathResolver(sandbox)
     result = resolver.resolve("olmayan_dosya.txt")
     assert result.status == ResolutionStatus.NOT_FOUND
+
+
+def test_accent_normalized_match(tmp_path):
+    (tmp_path / "Arşiv").mkdir()
+    resolver = PathResolver(str(tmp_path))
+    result = resolver.resolve("Arsiv")
+    assert result.status == ResolutionStatus.RESOLVED
+    assert result.resolved_path == str(tmp_path / "Arşiv")
+
+
+def test_ambiguous_match_still_ambiguous_with_normalize_tier(sandbox):
+    # Onceki davranis (substring kademesi) bu normalize kademesi eklendikten
+    # sonra da bozulmamali: "Arsiv2024"/"Arsiv2025" normalize edildiginde
+    # candidate ("Arsiv") ile TAM eslesmiyor (2024/2025 sonekleri yuzunden),
+    # bu yuzden normalize kademesi 0 sonuc dondurur ve akis substring
+    # kademesine duser - orada oldugu gibi belirsiz kalir.
+    resolver = PathResolver(sandbox)
+    result = resolver.resolve("Arsiv")
+    assert result.status == ResolutionStatus.AMBIGUOUS
+    assert len(result.matches) == 2

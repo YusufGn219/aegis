@@ -1,4 +1,4 @@
-from aegis.extraction.candidates import extract_candidates
+from aegis.extraction.candidates import extract_candidates, normalize
 
 
 def test_folder_and_filename_extraction():
@@ -45,3 +45,22 @@ def test_no_tool_relevant_candidates_for_unrelated_prompt():
 def test_dedupe_preserves_order():
     c = extract_candidates("rapor.pdf ve rapor.pdf ayni dosyadir.")
     assert c.filenames == ["rapor.pdf"]
+
+
+def test_english_folder_pattern_extraction():
+    c = extract_candidates("list files in the Downloads folder")
+    assert c.folder_names == ["Downloads"]
+
+
+def test_english_directory_pattern_extraction():
+    c = extract_candidates("move rapor.pdf to the Archive directory")
+    assert c.folder_names == ["Archive"]
+
+
+def test_normalize_strips_turkish_accents():
+    assert normalize("Arşiv") == normalize("Arsiv") == "arsiv"
+
+
+def test_turkish_and_english_folder_mentions_dedupe_independently():
+    c = extract_candidates("Arsiv klasorune tasi, sonra Downloads folder icindekileri listele.")
+    assert c.folder_names == ["Arsiv", "Downloads"]

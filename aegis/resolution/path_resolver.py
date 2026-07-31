@@ -9,6 +9,8 @@ import os
 from dataclasses import dataclass, field
 from enum import Enum
 
+from aegis.extraction.candidates import normalize
+
 YOK = "YOK"
 
 
@@ -61,6 +63,15 @@ class PathResolver:
             return Resolution(status=ResolutionStatus.RESOLVED, resolved_path=case_insensitive[0])
         if len(case_insensitive) > 1:
             return Resolution(status=ResolutionStatus.AMBIGUOUS, matches=case_insensitive)
+
+        candidate_normalized = normalize(candidate)
+        normalized_matches = [
+            e for e in entries if normalize(os.path.basename(e)) == candidate_normalized
+        ]
+        if len(normalized_matches) == 1:
+            return Resolution(status=ResolutionStatus.RESOLVED, resolved_path=normalized_matches[0])
+        if len(normalized_matches) > 1:
+            return Resolution(status=ResolutionStatus.AMBIGUOUS, matches=normalized_matches)
 
         substring_matches = [e for e in entries if candidate_lower in os.path.basename(e).lower()]
         if len(substring_matches) == 1:

@@ -6,27 +6,39 @@ kullanicinin yazdigi kelimelerden bir aday havuzu cikarmaktir. LLM daha sonra
 sadece bu havuzdan secim yapar (bkz. aegis.llm.prompt_builder).
 
 Bilinen sinirlamalar (bilerek bu asamada cozulmuyor):
-- Sadece Turkce "klasor" kalibi destekleniyor (ornegin "folder"/"directory"
-  gibi Ingilizce esdegerleri yakalanmiyor).
-- Fuzzy/normalize eslesme yok: "arsiv" ile "Arşiv" farkli string'ler olarak
-  kalir (case-insensitive eslesme PathResolver'da ayrica ele alinir, ama
-  aksan/karakter normalizasyonu yok).
+- Sadece "X klasoru" / "X folder" / "X directory" kalibi destekleniyor
+  (kelime SIRASI sabit - hedef once gelir); "klasor X" gibi ters sira
+  yakalanmiyor.
+- Fuzzy/Levenshtein eslesme yok - sadece tam string (normalize edilmis)
+  ve substring eslesme var (bkz. normalize() ve PathResolver).
 - Dosya sistemi varlik kontrolu burada YAPILMAZ - bu modul saf metin
   islemedir, gercek path cozumlemesi aegis.resolution.path_resolver'in isi.
 - Tirnak ici ifadelerin hangisinin "subject" hangisinin "body" oldugu bu
   modulun karari degil; sadece sirali bir liste doner, anlam atamasi
   Skill katmaninin sozlesmesidir (ilk tirnak = subject, ikinci = body).
+- Baglamsal referanslar ("bu dosya", "az once indirdigim") yakalanmiyor.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 QUOTED_RE = re.compile(r"""['"]([^'"]+)['"]""")
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 FILENAME_RE = re.compile(r"\b[\w\-]+\.\w{1,5}\b")
 FOLDER_RE = re.compile(r"(\w+)\s+klas[oö]r\w*", re.IGNORECASE)
+FOLDER_EN_RE = re.compile(r"(\w+)\s+(?:folder|directory)", re.IGNORECASE)
+
+
+def normalize(text: str) -> str:
+    """Aksanlari (ör. 's' <-> 'ş') sadelestirip kucuk harfe cevirir - saf
+    fonksiyon, I/O yok. PathResolver'in normalize edilmis eslesme
+    kademesiyle paylasilir."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    without_marks = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    return without_marks.casefold()
 
 
 @dataclass
@@ -61,7 +73,7 @@ def extract_candidates(text: str) -> Candidates:
         [f for f in raw_filenames if not any(f in email for email in emails)]
     )
 
-    folder_names = _dedupe_preserve_order(FOLDER_RE.findall(text))
+    folder_names = _dedupe_preserve_order(FOLDER_RE.findall(text) + FOLDER_EN_RE.findall(text))
 
     return Candidates(
         quoted_spans=quoted_spans,
