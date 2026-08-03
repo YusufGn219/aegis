@@ -59,6 +59,14 @@ class Tool(ABC):
         """invocation_policy.decide()'in kullandigi, bu tool icin zorunlu
         slotlarin ve onlara karsilik gelen aday listelerinin dokumu."""
 
+    def optional_slots(self, ctx: ToolContext) -> list[SlotRequirement]:
+        """Zorunlu olmayan ama skip_llm yolunda otomatik doldurulmasi
+        istenen slotlar. Varsayilan bos liste - cogu tool'un opsiyonel
+        alani yok. invocation_policy: 1 aday varsa otomatik doldurur,
+        2+ aday varsa (gercek belirsizlik) LLM'e birakir - asla tahmin
+        etmez; 0 aday varsa kullanici zaten hic bahsetmemis demektir."""
+        return []
+
     @abstractmethod
     def execute(self, resolved_args: dict, ctx: ToolContext) -> ToolResult:
         """Sadece TAMAMEN cozumlenmis (path-resolve edilmis ya da literal

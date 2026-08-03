@@ -75,10 +75,7 @@ def test_list_events_via_llm_mocked_lists_empty(tmp_path, monkeypatch):
 def test_add_event_with_time_and_recurrence_via_llm_mocked(tmp_path, monkeypatch):
     # Iki tirnakli ifade KASITLI - title adaylari (quoted_spans) 2 elemanli
     # olunca invocation_policy skip_llm=False donuyor (tam 1 aday sarti
-    # bozuluyor), akis LLM'e dusuyor. Bu onemli: title/date TEK adaylik
-    # olsaydi skip_llm=True olurdu ve time/recurrence gibi OPSIYONEL
-    # alanlar - invocation_policy sadece required_slots'a baktigi icin -
-    # sessizce KAYBOLURDU (bilinen bir sinirlama, bkz. add_event_tool.py).
+    # bozuluyor), akis LLM'e dusuyor.
     monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
     monkeypatch.setattr("builtins.input", lambda _: "y")
     monkeypatch.setattr(
@@ -94,6 +91,31 @@ def test_add_event_with_time_and_recurrence_via_llm_mocked(tmp_path, monkeypatch
     result = skill.run(
         "15.08.2026 saat 07:30'da 'Spor' ya da 'Antrenman' etkinligini haftalik olarak ekle.",
         "req-event-recurring",
+        logger,
+    )
+
+    assert result.success is True
+    calendar_path = os.path.join(str(tmp_path), "calendar.json")
+    events = json.loads(open(calendar_path, encoding="utf-8").read())
+    assert events == [
+        {"title": "Spor", "date": "15.08.2026", "time": "07:30", "recurrence": "haftalik"}
+    ]
+
+
+def test_add_event_with_time_and_recurrence_skips_llm_when_unambiguous(tmp_path, monkeypatch):
+    # title/date TEK adaylik (tek tirnakli ifade, tek tarih) -> invocation_policy
+    # skip_llm=True doner. LLM mock'u KASITLI cagrilmiyor (monkeypatch yok) -
+    # eger kod yanlislikla LLM'e duserse test bir gercek HTTP cagrisi denemeye
+    # calisip patlar. Bu, saat/tekrarin artik LLM'siz otomatik yolda da
+    # dogru yazildigini kanitlar (bkz. invocation_policy.decide() optional_slots).
+    monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+
+    skill = CalendarSkill()
+    logger = StructuredLogger(path=str(tmp_path / "events.jsonl"))
+    result = skill.run(
+        "15.08.2026 tarihinde saat 07:30 'Spor' etkinligini haftalik olarak ekle.",
+        "req-event-recurring-skip-llm",
         logger,
     )
 

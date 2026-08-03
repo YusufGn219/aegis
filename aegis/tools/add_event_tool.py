@@ -55,28 +55,29 @@ class AddEventTool(Tool):
                     },
                 },
                 # time/recurrence bilerek "required" listesinde DEGIL -
-                # invocation_policy'nin skip_llm kurali bu yuzden hala
-                # sadece title+date'e bakiyor (bkz. required_slots()).
+                # ama optional_slots() araciligiyla invocation_policy'nin
+                # skip_llm yoluna dahil edilirler (bkz. asagida).
                 "required": ["title", "date"],
             },
         }
 
     def required_slots(self, ctx: ToolContext) -> list[SlotRequirement]:
-        # BILINEN SINIRLAMA: time/recurrence burada YOK - invocation_policy
-        # skip_llm kararini SADECE bu listeye bakarak veriyor. Yani title+date
-        # tam 1'er aday oldugunda (cok sik rastlanan durum) akis LLM'e hic
-        # gitmeden otomatik cozuluyor VE bu durumda mesajda gecen time/
-        # recurrence bilgisi - ne kadar acik yazilmis olursa olsun -
-        # SESSIZCE KAYBOLUYOR (auto_resolved sadece required slotlari
-        # dolduruyor). Duzeltilmedi: invocation_policy'yi "opsiyonel ama
-        # tek adayli slotlar" kavramina genisletmek bu oturumun kapsami
-        # disinda tutuldu (bkz. vault notu).
         return [
             SlotRequirement(
                 slot_name="title", candidates=ctx.candidates.quoted_spans, is_filesystem_path=False
             ),
             SlotRequirement(
                 slot_name="date", candidates=ctx.candidates.dates, is_filesystem_path=False
+            ),
+        ]
+
+    def optional_slots(self, ctx: ToolContext) -> list[SlotRequirement]:
+        return [
+            SlotRequirement(
+                slot_name="time", candidates=ctx.candidates.times, is_filesystem_path=False
+            ),
+            SlotRequirement(
+                slot_name="recurrence", candidates=ctx.candidates.recurrences, is_filesystem_path=False
             ),
         ]
 

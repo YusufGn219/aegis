@@ -17,10 +17,20 @@ class InvocationDecision:
     reason: str
 
 
-def decide(required_slots: list[SlotRequirement]) -> InvocationDecision:
+def decide(
+    required_slots: list[SlotRequirement],
+    optional_slots: list[SlotRequirement] | None = None,
+) -> InvocationDecision:
     """Bir tool'un TUM zorunlu slotlarinda tam olarak 1 gercek aday varsa
     (0 veya 2+ degil), LLM'e sormadan otomatik cozulur. Aksi halde LLM
-    cagrisi gerekir (belirsizlik ya da gercek eksiklik var demektir)."""
+    cagrisi gerekir (belirsizlik ya da gercek eksiklik var demektir).
+
+    Opsiyonel slotlar (orn. add_event'in time/recurrence'i) bu karara
+    KATILMAZ (yoklugu skip_llm'i engellemez) ama VARLIKLARI atlanmaz: tam
+    1 adaylarsa auto_resolved'a eklenir; 2+ adaylarsa (gercek belirsizlik)
+    zorunlu slotlardaki gibi LLM'e dusulur - boylece kullanicinin acikca
+    yazdigi bir bilgi hicbir zaman sessizce kaybolmaz (0 aday = kullanici
+    zaten bahsetmemis, bu YOK kalir - kayip degil)."""
     auto_resolved: dict[str, str] = {}
     for slot in required_slots:
         if len(slot.candidates) != 1:
@@ -29,6 +39,20 @@ def decide(required_slots: list[SlotRequirement]) -> InvocationDecision:
                 auto_resolved=None,
                 reason=(
                     f"'{slot.slot_name}' slotunda {len(slot.candidates)} aday var "
+                    "(tam olarak 1 olmali) -> LLM cagrisi gerekli."
+                ),
+            )
+        auto_resolved[slot.slot_name] = slot.candidates[0]
+
+    for slot in optional_slots or []:
+        if len(slot.candidates) == 0:
+            continue
+        if len(slot.candidates) > 1:
+            return InvocationDecision(
+                skip_llm=False,
+                auto_resolved=None,
+                reason=(
+                    f"opsiyonel '{slot.slot_name}' slotunda {len(slot.candidates)} aday var "
                     "(tam olarak 1 olmali) -> LLM cagrisi gerekli."
                 ),
             )

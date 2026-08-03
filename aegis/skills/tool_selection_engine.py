@@ -91,7 +91,9 @@ def run_tool_selection(
         most_specific = [t for t in fully_evidenced if len(t.required_slots(ctx)) == max_slot_count]
         if len(most_specific) == 1:
             candidate_tool = most_specific[0]
-            decision = invocation_policy.decide(candidate_tool.required_slots(ctx))
+            decision = invocation_policy.decide(
+                candidate_tool.required_slots(ctx), candidate_tool.optional_slots(ctx)
+            )
             logger.log(
                 LogEvent(
                     request_id=request_id,
