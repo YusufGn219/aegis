@@ -51,6 +51,39 @@ class PathResolver:
 
         entries = self._walk_entries()
 
+        # Aday bir yol ayraci iceriyorsa (orn. retry promptunda kullanici
+        # "Her_Sey/Konsey" gibi goreli bir yol yazdiysa), sandbox_root'a
+        # gore goreli yolla karsilastir. Bu, basename'i AYNI olan ama farkli
+        # konumlardaki iki girdiyi (orn. iki "Konsey" klasoru) ayirt etmenin
+        # TEK yolu - salt basename karsilastirmasi bunu hicbir zaman cozemez
+        # (bkz. vault notu: Downloads/Konsey belirsizligi canli bulundu).
+        normalized_candidate_path = candidate.replace("\\", "/").strip("/")
+        if "/" in normalized_candidate_path:
+            rel_exact = [
+                e
+                for e in entries
+                if os.path.relpath(e, self.sandbox_root).replace("\\", "/") == normalized_candidate_path
+            ]
+            if len(rel_exact) == 1:
+                return Resolution(status=ResolutionStatus.RESOLVED, resolved_path=rel_exact[0])
+            if len(rel_exact) > 1:
+                return Resolution(status=ResolutionStatus.AMBIGUOUS, matches=rel_exact)
+
+            candidate_path_lower = normalized_candidate_path.lower()
+            rel_case_insensitive = [
+                e
+                for e in entries
+                if os.path.relpath(e, self.sandbox_root).replace("\\", "/").lower() == candidate_path_lower
+            ]
+            if len(rel_case_insensitive) == 1:
+                return Resolution(status=ResolutionStatus.RESOLVED, resolved_path=rel_case_insensitive[0])
+            if len(rel_case_insensitive) > 1:
+                return Resolution(status=ResolutionStatus.AMBIGUOUS, matches=rel_case_insensitive)
+            # Tam goreli yol hicbir girdiyle eslesmedi - basit isim
+            # kademelerine devam edilmiyor (candidate zaten bir ayrac
+            # iceriyor, basename'le anlamli sekilde eslesemez) -> NOT_FOUND.
+            return Resolution(status=ResolutionStatus.NOT_FOUND)
+
         exact = [e for e in entries if os.path.basename(e) == candidate]
         if len(exact) == 1:
             return Resolution(status=ResolutionStatus.RESOLVED, resolved_path=exact[0])

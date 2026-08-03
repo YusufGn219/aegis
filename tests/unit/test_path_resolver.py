@@ -56,6 +56,48 @@ def test_accent_normalized_match(tmp_path):
     assert result.resolved_path == str(tmp_path / "Arşiv")
 
 
+def test_relative_path_disambiguates_same_named_folders_in_different_locations(tmp_path):
+    (tmp_path / "Her_Sey" / "Konsey").mkdir(parents=True)
+    (tmp_path / "Her_Sey" / "Obsidian" / "Konsey").mkdir(parents=True)
+    resolver = PathResolver(str(tmp_path))
+
+    result = resolver.resolve("Konsey")
+    assert result.status == ResolutionStatus.AMBIGUOUS
+    assert len(result.matches) == 2
+
+    result = resolver.resolve("Her_Sey/Obsidian/Konsey")
+    assert result.status == ResolutionStatus.RESOLVED
+    assert result.resolved_path == str(tmp_path / "Her_Sey" / "Obsidian" / "Konsey")
+
+
+def test_relative_path_with_backslash_separator_also_resolves(tmp_path):
+    (tmp_path / "Her_Sey" / "Konsey").mkdir(parents=True)
+    (tmp_path / "Her_Sey" / "Obsidian" / "Konsey").mkdir(parents=True)
+    resolver = PathResolver(str(tmp_path))
+
+    result = resolver.resolve("Her_Sey\\Konsey")
+    assert result.status == ResolutionStatus.RESOLVED
+    assert result.resolved_path == str(tmp_path / "Her_Sey" / "Konsey")
+
+
+def test_relative_path_case_insensitive_match(tmp_path):
+    (tmp_path / "Her_Sey" / "Konsey").mkdir(parents=True)
+    (tmp_path / "Her_Sey" / "Obsidian" / "Konsey").mkdir(parents=True)
+    resolver = PathResolver(str(tmp_path))
+
+    result = resolver.resolve("her_sey/konsey")
+    assert result.status == ResolutionStatus.RESOLVED
+    assert result.resolved_path == str(tmp_path / "Her_Sey" / "Konsey")
+
+
+def test_relative_path_not_matching_anything_is_not_found(tmp_path):
+    (tmp_path / "Her_Sey" / "Konsey").mkdir(parents=True)
+    resolver = PathResolver(str(tmp_path))
+
+    result = resolver.resolve("Yanlis/Yol")
+    assert result.status == ResolutionStatus.NOT_FOUND
+
+
 def test_ambiguous_match_still_ambiguous_with_normalize_tier(sandbox):
     # Onceki davranis (substring kademesi) bu normalize kademesi eklendikten
     # sonra da bozulmamali: "Arsiv2024"/"Arsiv2025" normalize edildiginde
