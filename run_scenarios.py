@@ -98,6 +98,33 @@ SCENARIOS: list[tuple[str, str | None, list[str], bool]] = [
     # "hatirlat"/"goster" modeli karistirabiliyor (bkz. tests/integration/
     # test_multi_agent_routing.py) - "listele" ile tutarli sekilde calisiyor.
     ("Yaklasan etkinliklerimi listele.", "list_upcoming_events", [], True),
+    # --- Ek cesitlilik (veri hacmi artirma oturumu, 2026-08-03) ---
+    # Ayni "X klasorundeki" kalibi, Downloads/Arsiv disinda baska bir gercek
+    # klasor (Belgeler) uzerinde de dogrulaniyor.
+    ("Belgeler klasorundeki dosyalari listele.", "list_files", [], True),
+    # Buyuk harf ASCII girdi - hem case-insensitive hem normalize (aksan)
+    # eslesme kademesini ayni anda tetikliyor (gercek klasor "Arşiv").
+    ("ARSIV klasorundeki dosyalari listele.", "list_files", [], True),
+    # 2 gercek klasor adayi (Arsiv VE Belgeler) - invocation_policy
+    # skip_llm=False donup akisi LLM'e dusuruyor (gercek belirsizlik).
+    ("fatura_2026.xlsx dosyasini Arsiv ya da Belgeler klasorune tasi.", "move_file", ["y"], True),
+    # Opsiyonel slotlarin KISMEN doldugu durumlar - bugunku invocation_policy
+    # duzeltmesini (bkz. 08 nolu vault notu) canli vLLM'e karsi da dogruluyor:
+    # sadece "time" var (recurrence yok) skip_llm yolunda dahi kaybolmamali.
+    ("15.08.2026 saat 09:00 'Sabah toplantisi' ekle.", "add_event", ["y"], True),
+    # sadece "recurrence" var (time yok).
+    (
+        "20.09.2026 tarihinde 'Fatura odemesi' etkinligini aylik olarak ekle.",
+        "add_event",
+        ["y"],
+        True,
+    ),
+    (
+        "'Market listesi' basligiyla 'sut, yumurta, ekmek' icerikli bir not ekle.",
+        "create_note",
+        ["y"],
+        True,
+    ),
 ]
 
 SEED_FOLDERS = ["Downloads", "Arşiv", "Belgeler"]
