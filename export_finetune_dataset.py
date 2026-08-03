@@ -62,6 +62,18 @@ def _pick_skip_llm_decision(group: list[dict]) -> dict | None:
     return None
 
 
+def _find_candidates(group: list[dict]) -> dict:
+    """'extraction' adiminda loglanan aday havuzunu (emails/filenames/
+    folder_names) doner - redact_record()'un dosya/klasor adi kategorileri
+    icin kaynak. Extraction adimi yoksa (cok eski loglar) bos dict doner -
+    redact_record bu durumda e-posta icin regex-fallback'e duser, dosya/
+    klasor adi redaksiyonu ise atlanir."""
+    for event in group:
+        if event.get("step") == "extraction":
+            return (event.get("extra") or {}).get("candidates") or {}
+    return {}
+
+
 def _find_label(group: list[dict]) -> str:
     for event in group:
         if event.get("step") == "feedback":
@@ -77,6 +89,12 @@ def build_records(events: list[dict]) -> list[dict]:
     records = []
     for request_id, group in _group_by_request(events).items():
         label = _find_label(group)
+        candidates = _find_candidates(group)
+        redact_kwargs = {
+            "emails": candidates.get("emails"),
+            "filenames": candidates.get("filenames"),
+            "folder_names": candidates.get("folder_names"),
+        }
 
         llm_event = _pick_llm_call(group)
         if llm_event is not None:
@@ -89,7 +107,8 @@ def build_records(events: list[dict]) -> list[dict]:
                         "tools": llm_event.get("tool_schemas_sent"),
                         "output": llm_event.get("raw_completion"),
                         "label": label,
-                    }
+                    },
+                    **redact_kwargs,
                 )
             )
             continue
@@ -110,7 +129,8 @@ def build_records(events: list[dict]) -> list[dict]:
                             "synthetic": True,
                         },
                         "label": label,
-                    }
+                    },
+                    **redact_kwargs,
                 )
             )
     return records

@@ -122,6 +122,53 @@ def test_build_records_redacts_email_addresses():
     assert records[0]["output"]["args"]["to"] == "[EMAIL_1]"
 
 
+def test_build_records_redacts_filenames_and_folder_names_from_extraction_event():
+    events = [
+        {
+            "request_id": "r5",
+            "step": "extraction",
+            "extra": {
+                "candidates": {
+                    "emails": [],
+                    "filenames": ["rapor.pdf"],
+                    "folder_names": ["Arsiv"],
+                }
+            },
+        },
+        {
+            "request_id": "r5",
+            "step": "invocation_decision",
+            "llm_invoked": False,
+            "tool": "move_file",
+            "raw_user_message": "rapor.pdf dosyasini Arsiv klasorune tasi",
+            "extra": {"auto_resolved": {"source": "rapor.pdf", "destination": "Arsiv"}},
+        },
+    ]
+
+    records = build_records(events)
+
+    assert records[0]["user"] == "[FILENAME_1] dosyasini [FOLDER_1] klasorune tasi"
+    assert records[0]["output"]["args"] == {"source": "[FILENAME_1]", "destination": "[FOLDER_1]"}
+
+
+def test_build_records_without_extraction_event_falls_back_to_email_regex_only():
+    events = [
+        {
+            "request_id": "r6",
+            "step": "invocation_decision",
+            "llm_invoked": False,
+            "tool": "send_email",
+            "raw_user_message": "ahmet@sirket.com adresine mail at",
+            "extra": {"auto_resolved": {"to": "ahmet@sirket.com"}},
+        },
+    ]
+
+    records = build_records(events)
+
+    assert records[0]["user"] == "[EMAIL_1] adresine mail at"
+    assert records[0]["output"]["args"]["to"] == "[EMAIL_1]"
+
+
 def test_load_events_skips_blank_lines(tmp_path):
     input_path = tmp_path / "events.jsonl"
     input_path.write_text(
