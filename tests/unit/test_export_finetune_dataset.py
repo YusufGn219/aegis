@@ -103,6 +103,25 @@ def test_export_writes_jsonl_file(tmp_path):
     assert record["output"]["tool"] == "list_files"
 
 
+def test_build_records_redacts_email_addresses():
+    events = [
+        {
+            "request_id": "r4",
+            "step": "invocation_decision",
+            "llm_invoked": False,
+            "tool": "send_email",
+            "raw_user_message": "ahmet@sirket.com adresine mail at",
+            "extra": {"auto_resolved": {"to": "ahmet@sirket.com"}},
+        },
+    ]
+
+    records = build_records(events)
+
+    assert "ahmet@sirket.com" not in records[0]["user"]
+    assert records[0]["user"] == "[EMAIL_1] adresine mail at"
+    assert records[0]["output"]["args"]["to"] == "[EMAIL_1]"
+
+
 def test_load_events_skips_blank_lines(tmp_path):
     input_path = tmp_path / "events.jsonl"
     input_path.write_text(

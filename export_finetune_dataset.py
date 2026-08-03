@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from aegis import config
+from aegis.redaction import redact_record
 
 DEFAULT_OUTPUT_DIR = config.PROJECT_ROOT / "data" / "finetune"
 
@@ -80,14 +81,16 @@ def build_records(events: list[dict]) -> list[dict]:
         llm_event = _pick_llm_call(group)
         if llm_event is not None:
             records.append(
-                {
-                    "request_id": request_id,
-                    "system": llm_event.get("system_prompt"),
-                    "user": llm_event.get("raw_user_message"),
-                    "tools": llm_event.get("tool_schemas_sent"),
-                    "output": llm_event.get("raw_completion"),
-                    "label": label,
-                }
+                redact_record(
+                    {
+                        "request_id": request_id,
+                        "system": llm_event.get("system_prompt"),
+                        "user": llm_event.get("raw_user_message"),
+                        "tools": llm_event.get("tool_schemas_sent"),
+                        "output": llm_event.get("raw_completion"),
+                        "label": label,
+                    }
+                )
             )
             continue
 
@@ -95,18 +98,20 @@ def build_records(events: list[dict]) -> list[dict]:
         if decision_event is not None:
             auto_resolved = (decision_event.get("extra") or {}).get("auto_resolved")
             records.append(
-                {
-                    "request_id": request_id,
-                    "system": None,
-                    "user": decision_event.get("raw_user_message"),
-                    "tools": None,
-                    "output": {
-                        "tool": decision_event.get("tool"),
-                        "args": auto_resolved,
-                        "synthetic": True,
-                    },
-                    "label": label,
-                }
+                redact_record(
+                    {
+                        "request_id": request_id,
+                        "system": None,
+                        "user": decision_event.get("raw_user_message"),
+                        "tools": None,
+                        "output": {
+                            "tool": decision_event.get("tool"),
+                            "args": auto_resolved,
+                            "synthetic": True,
+                        },
+                        "label": label,
+                    }
+                )
             )
     return records
 
