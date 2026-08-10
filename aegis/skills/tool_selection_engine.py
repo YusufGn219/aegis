@@ -241,6 +241,26 @@ def run_tool_selection(
             )
         resolved_args[slot_name] = resolved_value
 
+    # 5.5) Zorunlu ama hicbir aday bulunamadigi (LLM'in YOK demek zorunda
+    # kaldigi) slotlar icin, kullaniciya sahte/bos degerlerle onay ekrani
+    # gostermek yerine burada net bir mesajla dur.
+    missing_required = [
+        s.slot_name for s in tool.required_slots(ctx) if resolved_args.get(s.slot_name) is None
+    ]
+    if missing_required:
+        hint = (
+            " Ornek: \"...adresine 'Konu' konulu 'Govde metni' icerikli mail gonder\"."
+            if tool.name == "send_email"
+            else ""
+        )
+        return ToolResult(
+            success=False,
+            message=(
+                f"'{tool.name}' icin gerekli bilgi eksik: {', '.join(missing_required)}. "
+                "Mesajinizda bu degerleri tek tirnak icinde acikca belirtin." + hint
+            ),
+        )
+
     # 6) Permission Engine.
     permitted = permission_engine.check_and_confirm(tool, resolved_args)
     logger.log(

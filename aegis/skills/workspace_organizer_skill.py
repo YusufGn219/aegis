@@ -13,6 +13,7 @@ from aegis.tools.copy_file_tool import CopyFileTool
 from aegis.tools.create_folder_tool import CreateFolderTool
 from aegis.tools.delete_file_tool import DeleteFileTool
 from aegis.tools.list_files_tool import ListFilesTool
+from aegis.tools.list_inbox_emails_tool import ListInboxEmailsTool
 from aegis.tools.move_file_tool import MoveFileTool
 from aegis.tools.send_email_tool import SendEmailTool
 
@@ -25,6 +26,7 @@ class WorkspaceOrganizerSkill(Skill):
             ListFilesTool(),
             MoveFileTool(),
             SendEmailTool(),
+            ListInboxEmailsTool(),
             CopyFileTool(),
             DeleteFileTool(),
             CreateFolderTool(),

@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 venv/
 .env
+credentials.json
+token.json
 logs/*.jsonl
 data/finetune/*.jsonl
 workspace_sandbox/Downloads/*

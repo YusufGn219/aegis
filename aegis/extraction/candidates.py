@@ -17,6 +17,8 @@ Bilinen sinirlamalar (bilerek bu asamada cozulmuyor):
   modulun karari degil; sadece sirali bir liste doner, anlam atamasi
   Skill katmaninin sozlesmesidir (ilk tirnak = subject, ikinci = body).
 - Baglamsal referanslar ("bu dosya", "az once indirdigim") yakalanmiyor.
+- "X konusunda, Y icerigin de" tetikleyici kalibi SADECE virgulle ayrilmis
+  kullanimda guvenilir (bkz. SUBJECT_TRIGGER_RE/BODY_TRIGGER_RE docstring'i).
 """
 
 from __future__ import annotations
@@ -26,6 +28,17 @@ import unicodedata
 from dataclasses import dataclass, field
 
 QUOTED_RE = re.compile(r"""['"]([^'"]+)['"]""")
+# Tirnaksiz, virgulle ayrilmis "konusunda"/"icerigin de" kalibi icin: mesaj
+# virgullere bolunur, her parca (clause) ayri ayri kontrol edilir - tetikleyici
+# kelime parcanin HERHANGI bir yerinde gecebilir, ondan ONCEKI metin aday
+# olarak alinir (SONRASI yoksayilir). Boylece "toplanti konusunda" -> "toplanti",
+# "yarin gorusuruz icerigin de bir mail" -> "yarin gorusuruz" yakalanir.
+# Bilinen sinirlama: tetikleyiciden ONCEKI metin parcanin TAMAMI (virgule kadar)
+# oldugundan, kullanici parcayi virgulle ayirmazsa (orn. "ahmete X konusunda
+# mail at" - virgul yok) yanlislikla fazla kelime (orn. "ahmete X") yakalanabilir;
+# bu yuzden bu kalip SADECE virgulle ayrilmis kullanimda guvenilirdir.
+SUBJECT_TRIGGER_RE = re.compile(r"^(.*?)\s+konu\w*\b", re.IGNORECASE)
+BODY_TRIGGER_RE = re.compile(r"^(.*?)\s+i[cç]eri[kgğ]\w*\b", re.IGNORECASE)
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 FILENAME_RE = re.compile(r"\b[\w\-]+\.\w{1,5}\b")
 FOLDER_RE = re.compile(r"(\w+)\s+klas[oö]r\w*", re.IGNORECASE)
@@ -77,9 +90,28 @@ def _dedupe_preserve_order(items: list[str]) -> list[str]:
     return result
 
 
+def _extract_trigger_phrases(text: str) -> list[str]:
+    """Virgulle ayrilmis parcalarda "konusunda"/"icerigin de" tetikleyicilerinden
+    ONCEKI metni doner - bkz. SUBJECT_TRIGGER_RE/BODY_TRIGGER_RE docstring'i."""
+    phrases = []
+    for clause in text.split(","):
+        clause = clause.strip()
+        if "'" in clause or '"' in clause:
+            # Bu parca zaten tirnak-tabanli kullanimda - tetikleyici
+            # kelime tirnak DISINDA da gecebilir (orn. "'Toplanti' konulu,"),
+            # bu durumda QUOTED_RE zaten dogru degeri yakalamis demektir,
+            # tekrar/kirli bir aday eklememek icin bu parcayi atla.
+            continue
+        for pattern in (SUBJECT_TRIGGER_RE, BODY_TRIGGER_RE):
+            match = pattern.match(clause)
+            if match and match.group(1).strip():
+                phrases.append(match.group(1).strip())
+    return phrases
+
+
 def extract_candidates(text: str) -> Candidates:
     """Metinden aday havuzunu cikarir. Saf fonksiyon - I/O ve LLM bagimliligi yok."""
-    quoted_spans = _dedupe_preserve_order(QUOTED_RE.findall(text))
+    quoted_spans = _dedupe_preserve_order(QUOTED_RE.findall(text) + _extract_trigger_phrases(text))
     emails = _dedupe_preserve_order(EMAIL_RE.findall(text))
 
     # filenames regex'i email'lerle cakisabilir (orn. "example.com" kismini
