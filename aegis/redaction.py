@@ -2,10 +2,17 @@
 logs/events.jsonl'e DOKUNMAZ (orasi hala cikplak, yerel debug icindir) -
 sadece export_finetune_dataset.py'nin urettigi record'lara uygulanir.
 
-Kapsam BILEREK sinirli: e-posta adresleri, dosya adlari, klasor adlari.
-`quoted_spans` (not/mail icerigi, etkinlik basligi) BILEREK disarida - o,
-modelin ogrenmesi gereken asil sinyal, redakte edilirse egitim verisi
-anlamsizlasir. Tarih/saat/tekrar da tek basina PII sayilmiyor.
+Kapsam: e-posta adresleri, dosya adlari, klasor adlari, VE (2026-08-10'dan
+itibaren) `quoted_spans` (not/mail icerigi, etkinlik basligi). Once bu
+sonuncusu bilerek disarida birakilmisti ("modelin ogrenmesi gereken asil
+sinyal, redakte edilirse anlamsizlasir" varsayimiyla) - ama email/filename
+icin zaten kullanilan AYNI teknik (gercek degeri TUTARLI bir placeholder'a
+cevirmek, orn. [TEXT_1]) bu sinyali BOZMUYOR: modelin ogrenmesi gereken sey
+"aday havuzundan hangi metni secip aynen kopyalayacagi" (yapisal iliski),
+metnin GERCEK icerigi degil - o iliski placeholder'la da aynen korunuyor.
+Gercek Gmail/Calendar entegrasyonuyla artik quoted_spans gercek kisisel
+veri (mail govdesi, ozel etkinlik basligi) tasiyabildigi icin bu ayrim
+onemli hale geldi. Tarih/saat/tekrar hala tek basina PII sayilmiyor.
 
 Dosya/klasor adlari icin yeni bir regex/tahmin ICAT EDILMEDI - zaten her
 istek icin loglanan "extraction" adiminin candidates'i (filenames,
@@ -62,12 +69,14 @@ def redact_record(
     emails: list[str] | None = None,
     filenames: list[str] | None = None,
     folder_names: list[str] | None = None,
+    quoted_spans: list[str] | None = None,
 ) -> dict:
     """Bir fine-tuning record'undaki (user/system/tools/output) e-posta/
-    dosya/klasor adlarini [KATEGORI_N] ile degistirir. `emails` verilmezse
-    (None) EMAIL_RE ile geriye donuk regex-fallback calisir; `filenames`/
-    `folder_names` verilmezse o kategoriler icin hicbir redaksiyon
-    yapilmaz (tahmin edilmez). Eslesme yoksa record oldugu gibi doner."""
+    dosya/klasor adlarini VE tirnakli/tetikleyici-kalipli metin parcalarini
+    [KATEGORI_N] ile degistirir. `emails` verilmezse (None) EMAIL_RE ile
+    geriye donuk regex-fallback calisir; `filenames`/`folder_names`/
+    `quoted_spans` verilmezse o kategoriler icin hicbir redaksiyon yapilmaz
+    (tahmin edilmez). Eslesme yoksa record oldugu gibi doner."""
     if emails is None:
         emails = _autodetect_emails(record)
 
@@ -76,6 +85,7 @@ def redact_record(
         ("EMAIL", emails),
         ("FILENAME", filenames or []),
         ("FOLDER", folder_names or []),
+        ("TEXT", quoted_spans or []),
     ):
         counter = 0
         for value in values:

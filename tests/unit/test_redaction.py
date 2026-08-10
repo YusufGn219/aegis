@@ -95,3 +95,23 @@ def test_longer_filename_does_not_get_partially_matched_by_shorter_one():
     record = {"user": "rapor.pdf.bak dosyasini rapor.pdf ile karsilastir"}
     result = redact_record(record, filenames=["rapor.pdf", "rapor.pdf.bak"])
     assert result["user"] == "[FILENAME_2] dosyasini [FILENAME_1] ile karsilastir"
+
+
+def test_quoted_span_is_replaced_when_provided():
+    record = {
+        "user": "ahmet@sirket.com adresine 'Toplanti' konulu 'Yarin 10da gorusuruz' icerikli mail gonder",
+        "output": {"args": {"subject": "Toplanti", "body": "Yarin 10da gorusuruz"}},
+    }
+    result = redact_record(
+        record, emails=["ahmet@sirket.com"], quoted_spans=["Toplanti", "Yarin 10da gorusuruz"]
+    )
+    assert "[TEXT_1]" in result["user"]
+    assert "[TEXT_2]" in result["user"]
+    assert "Toplanti" not in result["user"]
+    assert result["output"]["args"] == {"subject": "[TEXT_1]", "body": "[TEXT_2]"}
+
+
+def test_quoted_spans_without_hint_are_not_guessed():
+    record = {"user": "'Toplanti' basligiyla bir not olustur", "output": {"args": {"title": "Toplanti"}}}
+    result = redact_record(record)
+    assert result == record

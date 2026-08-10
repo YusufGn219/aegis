@@ -64,10 +64,10 @@ def _pick_skip_llm_decision(group: list[dict]) -> dict | None:
 
 def _find_candidates(group: list[dict]) -> dict:
     """'extraction' adiminda loglanan aday havuzunu (emails/filenames/
-    folder_names) doner - redact_record()'un dosya/klasor adi kategorileri
-    icin kaynak. Extraction adimi yoksa (cok eski loglar) bos dict doner -
-    redact_record bu durumda e-posta icin regex-fallback'e duser, dosya/
-    klasor adi redaksiyonu ise atlanir."""
+    folder_names/quoted_spans) doner - redact_record()'un kategorileri icin
+    kaynak. Extraction adimi yoksa (cok eski loglar) bos dict doner -
+    redact_record bu durumda e-posta icin regex-fallback'e duser, digerleri
+    icin ise redaksiyon atlanir."""
     for event in group:
         if event.get("step") == "extraction":
             return (event.get("extra") or {}).get("candidates") or {}
@@ -94,6 +94,7 @@ def build_records(events: list[dict]) -> list[dict]:
             "emails": candidates.get("emails"),
             "filenames": candidates.get("filenames"),
             "folder_names": candidates.get("folder_names"),
+            "quoted_spans": candidates.get("quoted_spans"),
         }
 
         llm_event = _pick_llm_call(group)
