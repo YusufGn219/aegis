@@ -7,6 +7,15 @@ bilinen "dogru cevap" (beklenen tool + beklenen basari) ile gercek sonucu
 karsilastirip otomatik bir "feedback" event'i loglar - export_finetune_
 dataset.py bunu "label" olarak kullanir.
 
+ONEMLI: send_email/list_inbox_emails/add_event/list_events/
+list_upcoming_events/update_event/delete_event/create_note/list_notes/
+update_note/delete_note artik GERCEK Google API'lerine (Gmail/Calendar/
+Drive) baglaniyor (bkz. Sprint 121-124). Bu script'in amaci gercek hesaba
+DEGIL, LLM'in tool-secimi/arguman-uretimi davranisina veri toplamak - bu
+yuzden _mock_live_integrations() bu tool'larin GERCEK ag cagrisi yapan alt
+katmanini (aegis.integrations.*) sabit/deterministik fake'lerle degistirir.
+LLM cagrisi hala tamamen GERCEK (canli vLLM) - sadece Google tarafi mock'lu.
+
 Ambiguous path-resolution gerektiren senaryolar KASITLI OLARAK yok (otomatik
 etiketlemeyi bulaniklastirir, bkz. README/vault notlari). Tekrar tekrar
 calistirilabilir - her calistirma yeni request_id'lerle yeni, gecerli
@@ -20,8 +29,10 @@ from __future__ import annotations
 import builtins
 import shutil
 import uuid
+from contextlib import ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from aegis import config
 from aegis.coordinator.coordinator import Coordinator
@@ -125,6 +136,15 @@ SCENARIOS: list[tuple[str, str | None, list[str], bool]] = [
         ["y"],
         True,
     ),
+    # --- Gercek Gmail/Calendar/Drive entegrasyonu (Sprint 121-124) - mock'lu ---
+    ("Gelen kutumu ozetle.", "list_inbox_emails", [], True),
+    # delete_event/update_event ayni tek slotu (title) add_event ile
+    # paylastigi icin fiil ("sil"/"guncelle") LLM'e dusuyor, bkz.
+    # tool_selection_engine._specificity_score().
+    ("'Toplanti' etkinligini sil.", "delete_event", ["y"], True),
+    ("'Toplanti' etkinligini saat 14:00'e guncelle.", "update_event", ["y"], True),
+    ("'Alisveris listesi' notunu sil.", "delete_note", ["y"], True),
+    ("'Alisveris listesi' notunu 'sut, ekmek, peynir' olarak guncelle.", "update_note", ["y"], True),
 ]
 
 SEED_FOLDERS = ["Downloads", "Arşiv", "Belgeler"]
@@ -138,9 +158,9 @@ SEED_FILES = {
 def _seed(sandbox_root: Path) -> None:
     """seed_sandbox.py ile ayni mantik - her senaryodan once sifirdan
     kurulur, boylece senaryolar birbirinden bagimsiz (sira onemsiz) olur.
-    Notes/Calendar tool'larinin yazdigi Notlar/ ve calendar.json da (varsa,
-    onceki senaryolardan kalma) temizlenir - aksi halde ayni basligi
-    kullanan iki senaryo yapay bir "zaten var" carpismasi yasar."""
+    Notes/Calendar artik local dosyaya yazmiyor (gercek Google API'lerine
+    baglaniyor, bkz. _mock_live_integrations()) - burada sadece dosya-
+    sistemi tabanli workspace_organizer senaryolari icin sandbox kuruluyor."""
     for folder in SEED_FOLDERS:
         path = sandbox_root / folder
         if path.exists():
@@ -149,12 +169,73 @@ def _seed(sandbox_root: Path) -> None:
     for rel_path, content in SEED_FILES.items():
         (sandbox_root / rel_path).write_text(content, encoding="utf-8")
 
-    notes_dir = sandbox_root / "Notlar"
-    if notes_dir.exists():
-        shutil.rmtree(notes_dir)
-    calendar_path = sandbox_root / "calendar.json"
-    if calendar_path.exists():
-        calendar_path.unlink()
+
+def _fake_event(title: str) -> dict:
+    return {"id": "fake-event-1", "title": title, "when": "2026-01-01T10:00:00+03:00", "recurring": False}
+
+
+def _fake_note(title: str) -> dict:
+    return {"id": "fake-note-1", "title": title, "modified": "2026-01-01T10:00:00Z"}
+
+
+def _mock_live_integrations() -> ExitStack:
+    """send_email/add_event/create_note vb. artik GERCEK Google API'lerine
+    yaziyor - bu fonksiyon o tool'larin cagirdigi aegis.integrations.*
+    fonksiyonlarini (tool modullerindeki import edilmis isimleri, bkz. unit
+    testlerindeki ayni patch hedefleri) sabit fake'lerle degistirir. LLM
+    cagrisi (tool secimi/arguman uretimi) MOCK'LANMAZ - hala gercek vLLM'e
+    gider, sadece Google tarafi devre disi. find_events_by_title/
+    find_notes_by_title HER ZAMAN sorgulanan basligi yankilayan TEK bir
+    sahte eslesme donerek delete/update senaryolarinin 'basarili' yolunu
+    genel olarak calistirir."""
+    stack = ExitStack()
+    targets = [
+        ("aegis.tools.send_email_tool.send_email", {"return_value": "fake-msg-1"}),
+        (
+            "aegis.tools.list_inbox_emails_tool.list_recent_emails",
+            {
+                "return_value": [
+                    {
+                        "from": "ornek@example.com",
+                        "subject": "Ornek konu",
+                        "date": "2026-01-01",
+                        "snippet": "ornek onizleme",
+                    }
+                ]
+            },
+        ),
+        ("aegis.tools.add_event_tool.add_event", {"return_value": "fake-event-1"}),
+        ("aegis.tools.list_events_tool.list_all_events", {"return_value": [_fake_event("Ornek Etkinlik")]}),
+        (
+            "aegis.tools.list_upcoming_events_tool.list_upcoming_events",
+            {"return_value": [_fake_event("Ornek Etkinlik")]},
+        ),
+        (
+            "aegis.tools.update_event_tool.find_events_by_title",
+            {"side_effect": lambda title, max_results=10: [_fake_event(title)]},
+        ),
+        ("aegis.tools.update_event_tool.update_event", {"return_value": _fake_event("Guncellenmis")}),
+        (
+            "aegis.tools.delete_event_tool.find_events_by_title",
+            {"side_effect": lambda title, max_results=10: [_fake_event(title)]},
+        ),
+        ("aegis.tools.delete_event_tool.delete_event", {"return_value": None}),
+        ("aegis.tools.create_note_tool.create_note", {"return_value": "fake-note-1"}),
+        ("aegis.tools.list_notes_tool.list_notes", {"return_value": [_fake_note("Ornek Not")]}),
+        (
+            "aegis.tools.update_note_tool.find_notes_by_title",
+            {"side_effect": lambda title, max_results=10: [_fake_note(title)]},
+        ),
+        ("aegis.tools.update_note_tool.update_note", {"return_value": _fake_note("Guncellenmis")}),
+        (
+            "aegis.tools.delete_note_tool.find_notes_by_title",
+            {"side_effect": lambda title, max_results=10: [_fake_note(title)]},
+        ),
+        ("aegis.tools.delete_note_tool.delete_note", {"return_value": None}),
+    ]
+    for target, kwargs in targets:
+        stack.enter_context(patch(target, **kwargs))
+    return stack
 
 
 def _fake_input_queue(answers: list[str]):
@@ -219,7 +300,7 @@ def main() -> None:
     logger = StructuredLogger()
     coordinator = Coordinator()
 
-    with TemporaryDirectory() as tmp:
+    with TemporaryDirectory() as tmp, _mock_live_integrations():
         sandbox_root = Path(tmp)
         config.SANDBOX_ROOT = sandbox_root
 
