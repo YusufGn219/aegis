@@ -130,3 +130,41 @@ def list_all_events(max_results: int = 20) -> list[dict]:
         time_max=now + timedelta(days=365),
         max_results=max_results,
     )
+
+
+def find_events_by_title(title: str, max_results: int = 10) -> list[dict]:
+    """Baslikla (Google'in tam-metin arama parametresi `q` ile) eslesen
+    etkinlikleri doner - delete_event_tool'un kullaniciya "hangi etkinlik"
+    demeden ONCE gercek adaylari gormesi icin. Gecmis 365 - gelecek 365 gun
+    penceresiyle sinirli (silme genelde yakin zamanli bir etkinligi hedefler)."""
+    creds = load_credentials()
+    service = build("calendar", "v3", credentials=creds)
+    now = datetime.now(ZoneInfo(TIMEZONE))
+
+    try:
+        result = (
+            service.events()
+            .list(
+                calendarId=CALENDAR_ID,
+                q=title,
+                timeMin=(now - timedelta(days=365)).isoformat(),
+                timeMax=(now + timedelta(days=365)).isoformat(),
+                maxResults=max_results,
+                singleEvents=True,
+                orderBy="startTime",
+            )
+            .execute()
+        )
+    except HttpError as exc:
+        raise CalendarApiError(f"Calendar API arama hatasi: {exc}") from exc
+
+    return [{"id": e["id"], **_describe_event(e)} for e in result.get("items", [])]
+
+
+def delete_event(event_id: str) -> None:
+    creds = load_credentials()
+    service = build("calendar", "v3", credentials=creds)
+    try:
+        service.events().delete(calendarId=CALENDAR_ID, eventId=event_id).execute()
+    except HttpError as exc:
+        raise CalendarApiError(f"Calendar API silme hatasi: {exc}") from exc

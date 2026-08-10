@@ -139,6 +139,89 @@ def test_list_upcoming_events_returns_client_data(tmp_path, monkeypatch):
     assert titles == ["Bugun", "Gelecek"]
 
 
+def test_delete_event_skip_llm_single_match_deletes(tmp_path, monkeypatch):
+    # Sadece 1 tirnakli ifade + sadece delete_event'in required slotu
+    # dolu (title) -> delete_event tek basina "tam kanitlanmis", LLM atlanir.
+    monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+
+    def fail_if_llm_called(_request):
+        raise AssertionError("Bu senaryoda LLM'e hic gidilmemeliydi (skip_llm=True bekleniyordu)")
+
+    monkeypatch.setattr(
+        "aegis.skills.tool_selection_engine.llm_client.call_for_tool_selection",
+        fail_if_llm_called,
+    )
+
+    match = {"id": "evt-1", "title": "Toplanti", "when": "2026-08-15", "recurring": False}
+    with (
+        patch("aegis.tools.delete_event_tool.find_events_by_title", return_value=[match]) as mock_find,
+        patch("aegis.tools.delete_event_tool.delete_event") as mock_delete,
+    ):
+        skill = CalendarSkill()
+        logger = StructuredLogger(path=str(tmp_path / "events.jsonl"))
+        result = skill.run("'Toplanti' etkinligini sil.", "req-delete-event", logger)
+
+    assert result.success is True
+    mock_find.assert_called_once_with("Toplanti")
+    mock_delete.assert_called_once_with("evt-1")
+
+
+def test_delete_event_no_match_does_not_delete(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+
+    with (
+        patch("aegis.tools.delete_event_tool.find_events_by_title", return_value=[]),
+        patch("aegis.tools.delete_event_tool.delete_event") as mock_delete,
+    ):
+        skill = CalendarSkill()
+        logger = StructuredLogger(path=str(tmp_path / "events.jsonl"))
+        result = skill.run("'Olmayan Etkinlik' etkinligini sil.", "req-delete-no-match", logger)
+
+    assert result.success is False
+    assert "bulunamadi" in result.message
+    mock_delete.assert_not_called()
+
+
+def test_delete_event_multiple_matches_does_not_delete(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+
+    matches = [
+        {"id": "evt-1", "title": "Spor", "when": "2026-08-15", "recurring": False},
+        {"id": "evt-2", "title": "Spor", "when": "2026-08-22", "recurring": False},
+    ]
+    with (
+        patch("aegis.tools.delete_event_tool.find_events_by_title", return_value=matches),
+        patch("aegis.tools.delete_event_tool.delete_event") as mock_delete,
+    ):
+        skill = CalendarSkill()
+        logger = StructuredLogger(path=str(tmp_path / "events.jsonl"))
+        result = skill.run("'Spor' etkinligini sil.", "req-delete-ambiguous", logger)
+
+    assert result.success is False
+    assert "birden fazla" in result.message
+    mock_delete.assert_not_called()
+
+
+def test_delete_event_declined_permission_does_not_search_or_delete(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "SANDBOX_ROOT", tmp_path)
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    with (
+        patch("aegis.tools.delete_event_tool.find_events_by_title") as mock_find,
+        patch("aegis.tools.delete_event_tool.delete_event") as mock_delete,
+    ):
+        skill = CalendarSkill()
+        logger = StructuredLogger(path=str(tmp_path / "events.jsonl"))
+        result = skill.run("'Toplanti' etkinligini sil.", "req-delete-declined", logger)
+
+    assert result.success is False
+    mock_find.assert_not_called()
+    mock_delete.assert_not_called()
+
+
 def test_add_event_calendar_api_error_returns_failure(tmp_path, monkeypatch):
     from aegis.integrations.calendar_client import CalendarApiError
 

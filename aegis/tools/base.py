@@ -16,8 +16,7 @@ YOK = "YOK"
 class RiskLevel(str, Enum):
     LOW = "LOW"  # salt-okunur, otomatik calisir (orn. list_files)
     MEDIUM = "MEDIUM"  # mutasyon var ama geri alinabilir/kontrollu (move/send) -> onay gerekir
-    HIGH = "HIGH"  # yikici/geri alinamaz (delete/registry/format) -> onay + tam deger gosterimi
-    # Bu dilimde hicbir tool HIGH degil; tier sadece ileriki fazlar icin burada tanimli.
+    HIGH = "HIGH"  # yikici/geri alinamaz (delete_file, delete_event) -> onay + tam deger gosterimi
 
 
 @dataclass
