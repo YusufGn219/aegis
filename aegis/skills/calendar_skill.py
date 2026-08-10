@@ -13,6 +13,7 @@ from aegis.tools.base import Tool, ToolResult
 from aegis.tools.delete_event_tool import DeleteEventTool
 from aegis.tools.list_events_tool import ListEventsTool
 from aegis.tools.list_upcoming_events_tool import ListUpcomingEventsTool
+from aegis.tools.update_event_tool import UpdateEventTool
 
 
 class CalendarSkill(Skill):
@@ -24,6 +25,7 @@ class CalendarSkill(Skill):
             ListEventsTool(),
             ListUpcomingEventsTool(),
             DeleteEventTool(),
+            UpdateEventTool(),
         ]
         self.permission_engine = PermissionEngine()
 

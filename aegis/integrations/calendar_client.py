@@ -11,6 +11,7 @@ API'nin timeMin/singleEvents/orderBy parametrelerine dayanir."""
 
 from __future__ import annotations
 
+from datetime import date as date_cls
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -159,6 +160,69 @@ def find_events_by_title(title: str, max_results: int = 10) -> list[dict]:
         raise CalendarApiError(f"Calendar API arama hatasi: {exc}") from exc
 
     return [{"id": e["id"], **_describe_event(e)} for e in result.get("items", [])]
+
+
+def update_event(
+    event_id: str, date: str | None, time: str | None, recurrence: str | None
+) -> dict:
+    """Var olan bir etkinligin tarih/saat/tekrarini gunceller (baslik/diger
+    alanlar dokunulmadan kalir - Calendar API'nin patch'i sadece body'de
+    verilen ust-seviye alanlari degistirir). date/time'dan sadece biri
+    verilirse digeri MEVCUT etkinlikten alinir (orn. sadece saat degisirse
+    tarih aynı kalir) - kullanicinin belirtmedigi bir seyi sessizce
+    degistirmemek icin."""
+    creds = load_credentials()
+    service = build("calendar", "v3", credentials=creds)
+
+    try:
+        existing = service.events().get(calendarId=CALENDAR_ID, eventId=event_id).execute()
+    except HttpError as exc:
+        raise CalendarApiError(f"Calendar API okuma hatasi: {exc}") from exc
+
+    body: dict = {}
+
+    if date or time:
+        existing_start = existing.get("start", {})
+        is_all_day = "date" in existing_start and "dateTime" not in existing_start
+
+        if date:
+            event_date = _parse_date(date)
+        elif is_all_day:
+            event_date = date_cls.fromisoformat(existing_start["date"])
+        else:
+            event_date = datetime.fromisoformat(existing_start["dateTime"]).date()
+
+        if time:
+            event_time = _parse_time(time)
+            start_dt = datetime.combine(event_date, event_time, tzinfo=ZoneInfo(TIMEZONE))
+            end_dt = start_dt + timedelta(hours=1)
+            body["start"] = {"dateTime": start_dt.isoformat()}
+            body["end"] = {"dateTime": end_dt.isoformat()}
+        elif not is_all_day:
+            # Sadece tarih degisiyor, mevcut saat-of-day ve sureyi koru.
+            existing_start_dt = datetime.fromisoformat(existing_start["dateTime"])
+            existing_end_dt = datetime.fromisoformat(existing["end"]["dateTime"])
+            duration = existing_end_dt - existing_start_dt
+            start_dt = existing_start_dt.replace(
+                year=event_date.year, month=event_date.month, day=event_date.day
+            )
+            body["start"] = {"dateTime": start_dt.isoformat()}
+            body["end"] = {"dateTime": (start_dt + duration).isoformat()}
+        else:
+            body["start"] = {"date": event_date.isoformat()}
+            body["end"] = {"date": (event_date + timedelta(days=1)).isoformat()}
+
+    if recurrence:
+        rrule = RECURRENCE_RRULE.get(recurrence)
+        if rrule:
+            body["recurrence"] = [rrule]
+
+    try:
+        updated = service.events().patch(calendarId=CALENDAR_ID, eventId=event_id, body=body).execute()
+    except HttpError as exc:
+        raise CalendarApiError(f"Calendar API guncelleme hatasi: {exc}") from exc
+
+    return _describe_event(updated)
 
 
 def delete_event(event_id: str) -> None:

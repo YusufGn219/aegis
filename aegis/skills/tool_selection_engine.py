@@ -44,6 +44,22 @@ def _tool_is_fully_evidenced(tool: Tool, ctx: ToolContext) -> bool:
     return bool(slots) and all(len(slot.candidates) > 0 for slot in slots)
 
 
+def _specificity_score(tool: Tool, ctx: ToolContext) -> int:
+    """'En spesifik tool' kiyaslamasi sadece ZORUNLU slot sayisina degil,
+    doldurulmus OPSIYONEL slotlara da bakar. Gerekce: add_event (zorunlu
+    title+date) ile update_event (zorunlu SADECE title, ama opsiyonel
+    date/time/recurrence) ayni "etkinlik" candidate havuzlarini paylasiyor -
+    sadece zorunlu-slot sayimi kullanilsaydi, mesajda bir tarih gecmesi
+    yeterli olup add_event'i HER ZAMAN update_event'in onune gecirir, verb
+    ("ekle" vs "guncelle") hic kontrol edilmeden. Opsiyonel-doluluk da sayima
+    katilinca bu iki tool DENK cikar (gercek belirsizlik) ve karar dogru
+    sekilde LLM'e (verb'e) birakilir - move_file/copy_file'daki fiil
+    belirsizligiyle ayni prensip."""
+    required = tool.required_slots(ctx)
+    optional = tool.optional_slots(ctx)
+    return len(required) + sum(1 for slot in optional if len(slot.candidates) > 0)
+
+
 def run_tool_selection(
     user_message: str,
     request_id: str,
@@ -87,8 +103,8 @@ def run_tool_selection(
     tokens_completion = None
 
     if fully_evidenced:
-        max_slot_count = max(len(t.required_slots(ctx)) for t in fully_evidenced)
-        most_specific = [t for t in fully_evidenced if len(t.required_slots(ctx)) == max_slot_count]
+        max_score = max(_specificity_score(t, ctx) for t in fully_evidenced)
+        most_specific = [t for t in fully_evidenced if _specificity_score(t, ctx) == max_score]
         if len(most_specific) == 1:
             candidate_tool = most_specific[0]
             decision = invocation_policy.decide(
