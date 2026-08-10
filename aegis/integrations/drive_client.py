@@ -89,6 +89,63 @@ def create_note(title: str, content: str) -> str:
     return created["id"]
 
 
+def find_notes_by_title(title: str, max_results: int = 10) -> list[dict]:
+    """delete_note_tool/update_note_tool'un kullaniciya "hangi not" demeden
+    ONCE gercek adaylari gormesi icin. create_note ayni baslikla ikinci bir
+    dosya olusturmayi zaten reddettigi icin normalde tek eslesme cikar, ama
+    Drive'a elle/baska yoldan eklenmis ayni isimli dosyalar da olabilir -
+    bu yuzden delete_event_tool'daki gibi 0/1/2+ ayrimi yapiliyor."""
+    service = _get_service()
+    folder_id = _find_notes_folder_id(service)
+    if folder_id is None:
+        return []
+
+    escaped_title = title.replace("'", "\\'")
+    query = f"name = '{escaped_title}' and '{folder_id}' in parents and trashed = false"
+    try:
+        result = (
+            service.files()
+            .list(q=query, fields="files(id, name, modifiedTime)", pageSize=max_results)
+            .execute()
+        )
+    except HttpError as exc:
+        raise DriveApiError(f"Drive API arama hatasi: {exc}") from exc
+
+    return [
+        {"id": f["id"], "title": f["name"], "modified": f.get("modifiedTime", "")}
+        for f in result.get("files", [])
+    ]
+
+
+def update_note(file_id: str, content: str) -> dict:
+    """Var olan bir notun icerigini TAMAMEN yeni `content` ile degistirir
+    (baslik/dosya adi ayni kalir - yeniden adlandirma desteklenmiyor, bkz.
+    update_note_tool docstring'i)."""
+    service = _get_service()
+    try:
+        existing = service.files().get(fileId=file_id, fields="name").execute()
+        media = MediaInMemoryUpload(
+            f"{existing['name']}\n\n{content}\n".encode("utf-8"), mimetype=TEXT_MIME_TYPE
+        )
+        updated = (
+            service.files()
+            .update(fileId=file_id, media_body=media, fields="name, modifiedTime")
+            .execute()
+        )
+    except HttpError as exc:
+        raise DriveApiError(f"Drive API guncelleme hatasi: {exc}") from exc
+
+    return {"title": updated["name"], "modified": updated.get("modifiedTime", "")}
+
+
+def delete_note(file_id: str) -> None:
+    service = _get_service()
+    try:
+        service.files().delete(fileId=file_id).execute()
+    except HttpError as exc:
+        raise DriveApiError(f"Drive API silme hatasi: {exc}") from exc
+
+
 def list_notes() -> list[dict]:
     """"aegis Notlar" klasorundeki notlari (isim/degistirilme tarihi)
     doner, en son degistirilen once."""

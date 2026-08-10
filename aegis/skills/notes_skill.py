@@ -10,14 +10,21 @@ from aegis.skills.base import Skill
 from aegis.skills.tool_selection_engine import run_tool_selection
 from aegis.tools.base import Tool, ToolResult
 from aegis.tools.create_note_tool import CreateNoteTool
+from aegis.tools.delete_note_tool import DeleteNoteTool
 from aegis.tools.list_notes_tool import ListNotesTool
+from aegis.tools.update_note_tool import UpdateNoteTool
 
 
 class NotesSkill(Skill):
     name = "notes"
 
     def __init__(self):
-        self.tools: list[Tool] = [CreateNoteTool(), ListNotesTool()]
+        self.tools: list[Tool] = [
+            CreateNoteTool(),
+            ListNotesTool(),
+            DeleteNoteTool(),
+            UpdateNoteTool(),
+        ]
         self.permission_engine = PermissionEngine()
 
     def run(
