@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import os
-
+from aegis.integrations.drive_client import DriveApiError, list_notes
+from aegis.integrations.google_auth import GoogleAuthError
 from aegis.tools.base import RiskLevel, SlotRequirement, Tool, ToolContext, ToolResult
 
 
 class ListNotesTool(Tool):
     name = "list_notes"
-    description = "Sandbox icindeki Notlar klasorundeki notlari listeler."
+    description = "Google Drive'daki ('aegis Notlar' klasorunde) notlari listeler."
     risk_level = RiskLevel.LOW
 
     def build_schema(self, ctx: ToolContext) -> dict:
@@ -21,13 +21,14 @@ class ListNotesTool(Tool):
         return []
 
     def execute(self, resolved_args: dict, ctx: ToolContext) -> ToolResult:
-        notes_dir = os.path.join(ctx.sandbox_root, "Notlar")
-        if not os.path.isdir(notes_dir):
-            return ToolResult(success=True, message="Notlar klasoru bos (henuz not yok).", data={"notes": []})
+        try:
+            notes = list_notes()
+        except (GoogleAuthError, DriveApiError) as exc:
+            return ToolResult(success=False, message=str(exc))
 
-        notes = sorted(os.listdir(notes_dir))
+        titles = [n["title"] for n in notes]
         return ToolResult(
             success=True,
-            message=f"{len(notes)} not: {', '.join(notes) or '(bos)'}",
+            message=f"{len(notes)} not: {', '.join(titles) or '(bos)'}",
             data={"notes": notes},
         )

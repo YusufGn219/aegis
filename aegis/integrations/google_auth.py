@@ -15,6 +15,9 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/calendar.events",
+    # drive.file: SADECE bu uygulamanin kendi olusturdugu dosyalara erisim -
+    # kullanicinin var olan Drive icerigini goremez/degistiremez.
+    "https://www.googleapis.com/auth/drive.file",
 ]
 
 

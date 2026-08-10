@@ -8,8 +8,9 @@ vermez — önce mesajınızdan gerçek dosya/klasör adlarını çıkarır, mod
 sadece bunlar arasından seçim yaptırır ve riskli işlemlerden (taşıma,
 gönderme gibi) önce size gerçek değerleri gösterip onay ister. Şu an
 desteklenen işlemler: bir klasördeki dosyaları listeleme, bir dosyayı başka
-bir klasöre taşıma, Gmail üzerinden e-posta gönderme/gelen kutusu özetleme
-ve Google Calendar üzerinde etkinlik ekleme/listeleme.
+bir klasöre taşıma, Gmail üzerinden e-posta gönderme/gelen kutusu özetleme,
+Google Calendar üzerinde etkinlik ekleme/listeleme/güncelleme/silme ve
+Google Drive'da not oluşturma/listeleme.
 
 ## Gereksinimler
 
@@ -36,20 +37,27 @@ python seed_sandbox.py
 `workspace_sandbox/` içindeki test klasörlerini (Downloads, Arşiv, Belgeler)
 sahte dosyalarla sıfırlar. Tekrar tekrar çalıştırılabilir.
 
-## Google Kurulumu (Gmail + Calendar için)
+## Google Kurulumu (Gmail + Calendar + Drive için)
 
 `send_email`/`list_inbox_emails`/`add_event`/`list_events`/
-`list_upcoming_events` tool'ları TEK bir Google OAuth client'ı ve TEK bir
-`token.json` üzerinden 3 scope kullanır: `gmail.send`, `gmail.readonly`,
+`list_upcoming_events`/`update_event`/`delete_event`/`create_note`/
+`list_notes` tool'ları TEK bir Google OAuth client'ı ve TEK bir
+`token.json` üzerinden 4 scope kullanır: `gmail.send`, `gmail.readonly`,
 `calendar.events` (takvim ayarlarına/paylaşıma dokunmaz, sadece etkinlik
-oluşturma/okuma). Bunların hepsi Google'ın "hassas scope" sınıfına girer —
-uygulama "Testing" modunda ve hesap test kullanıcısı olarak eklendiği
-sürece Google'ın ayrı bir doğrulama sürecine gerek kalmaz. Tek seferlik
-kurulum:
+oluşturma/okuma/güncelleme/silme), `drive.file` (SADECE bu uygulamanın
+kendi oluşturduğu dosyalara erişim — mevcut Drive içeriğinizi göremez).
+Notlar için Google Keep API kullanılmadı çünkü **kişisel (@gmail.com)
+hesaplarda çalışmıyor** — sadece Workspace admin'in açtığı kurumsal
+hesaplarda kullanılabiliyor; bu yüzden notlar Drive'da "aegis Notlar"
+klasöründe düz metin dosyası olarak tutuluyor. Bunların hepsi Google'ın
+"hassas scope" sınıfına girer — uygulama "Testing" modunda ve hesap test
+kullanıcısı olarak eklendiği sürece Google'ın ayrı bir doğrulama sürecine
+gerek kalmaz. Tek seferlik kurulum:
 
 1. [Google Cloud Console](https://console.cloud.google.com/)'da bir proje
    açın (veya var olanı kullanın) ve **Gmail API** + **Google Calendar
-   API**'yi etkinleştirin (APIs & Services → Library).
+   API** + **Google Drive API**'yi etkinleştirin (APIs & Services →
+   Library).
 2. **APIs & Services → OAuth consent screen**'i "External" + "Testing"
    modunda ayarlayıp kullanılacak Google hesabını test kullanıcısı olarak
    ekleyin.
@@ -57,10 +65,10 @@ kurulum:
    uygulama tipi **Desktop app** seçin, indirin.
 4. İndirilen dosyayı proje köküne `credentials.json` adıyla koyun (repo'ya
    commit edilmez, `.gitignore`'da).
-5. İlk canlı çağrıda (send_email/add_event/...) tarayıcı açılır, hesabınızla
-   giriş yapıp **3 scope'un tamamı için** izin verin. Onay sonrası
-   `token.json` oluşur ve sonraki çalıştırmalarda otomatik yenilenir
-   (tekrar tarayıcı açılmaz).
+5. İlk canlı çağrıda (send_email/add_event/create_note/...) tarayıcı açılır,
+   hesabınızla giriş yapıp **4 scope'un tamamı için** izin verin. Onay
+   sonrası `token.json` oluşur ve sonraki çalıştırmalarda otomatik
+   yenilenir (tekrar tarayıcı açılmaz).
 
 Farklı bir dosya konumu istiyorsanız `AEGIS_GOOGLE_CREDENTIALS_PATH` /
 `AEGIS_GOOGLE_TOKEN_PATH` ortam değişkenleriyle override edebilirsiniz.
