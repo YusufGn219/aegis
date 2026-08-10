@@ -145,6 +145,21 @@ SCENARIOS: list[tuple[str, str | None, list[str], bool]] = [
     ("'Toplanti' etkinligini saat 14:00'e guncelle.", "update_event", ["y"], True),
     ("'Alisveris listesi' notunu sil.", "delete_note", ["y"], True),
     ("'Alisveris listesi' notunu 'sut, ekmek, peynir' olarak guncelle.", "update_note", ["y"], True),
+    # Mesajda hicbir aday yok (ne email ne tirnakli ifade) - "Bir dosyayi
+    # sil."/"Bir etkinlik ekle." ile ayni guvenli-red deseni, send_email icin.
+    ("Birine mail gonder.", None, [], False),
+    # Yeni HIGH-risk tool'lar icin de onay-reddi yolu (delete_file/move_file'da
+    # zaten test edilen deseni delete_event/delete_note'a genisletiyor).
+    # Prompt farkli tutuldu (test_scenarios_are_well_formed_and_unique tekrarli
+    # prompt kabul etmiyor) - _mock_live_integrations() basligi yankiladigi
+    # icin farkli baslik kullanmak sonucu etkilemiyor.
+    ("'Doktor randevusu' etkinligini sil.", "delete_event", ["n"], False),
+    ("'Market listesi' notunu sil.", "delete_note", ["n"], False),
+    # Ingilizce varyantlar - workspace tool'lari icin zaten test edilen
+    # "ayni fiil/istek Ingilizce de dogru calisiyor mu" deseni yeni canli
+    # tool'lara genisletiliyor.
+    ("delete the 'Toplanti' event", "delete_event", ["y"], True),
+    ("check my inbox", "list_inbox_emails", [], True),
 ]
 
 SEED_FOLDERS = ["Downloads", "Arşiv", "Belgeler"]
