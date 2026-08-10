@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import os
-
-from aegis.tools.add_event_tool import CALENDAR_FILENAME, _load_events
+from aegis.integrations.calendar_client import CalendarApiError, list_all_events
+from aegis.integrations.google_auth import GoogleAuthError
 from aegis.tools.base import RiskLevel, SlotRequirement, Tool, ToolContext, ToolResult
 
 
 class ListEventsTool(Tool):
     name = "list_events"
-    description = "Sandbox icindeki calendar.json dosyasindaki etkinlikleri listeler."
+    description = (
+        "Google Calendar'daki etkinlikleri (son 90 gun - gelecek 365 gun araligi) listeler."
+    )
     risk_level = RiskLevel.LOW
 
     def build_schema(self, ctx: ToolContext) -> dict:
@@ -22,9 +23,12 @@ class ListEventsTool(Tool):
         return []
 
     def execute(self, resolved_args: dict, ctx: ToolContext) -> ToolResult:
-        calendar_path = os.path.join(ctx.sandbox_root, CALENDAR_FILENAME)
-        events = _load_events(calendar_path)
-        summary = ", ".join(f"{e['title']} ({e['date']})" for e in events) or "(bos)"
+        try:
+            events = list_all_events()
+        except (GoogleAuthError, CalendarApiError) as exc:
+            return ToolResult(success=False, message=str(exc))
+
+        summary = ", ".join(f"{e['title']} ({e['when']})" for e in events) or "(bos)"
         return ToolResult(
             success=True,
             message=f"{len(events)} etkinlik: {summary}",

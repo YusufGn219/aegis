@@ -1,0 +1,132 @@
+"""Google Calendar API uzerinden GERCEK etkinlik olusturma/listeleme
+(calendar.events scope - takvim ayarlarina/paylasima dokunmaz). OAuth akisi
+google_auth'ta ORTAK (Gmail ile paylasilir).
+
+Tarih/saat: candidates.py'nin dogrulama yapmadan aynen tuttugu ham metin
+("GG.AA.YYYY" / "SS:DD") burada sabit bir saat dilimiyle RFC3339'a cevrilir.
+Saat verilmemisse gun-boyu (all-day) etkinlik olusturulur. Tekrar (haftalik/
+aylik) Google'in kendi RRULE mekanizmasina devredilir - "yaklasan etkinlikleri
+listele" artik yerel bir tarih-filtreleme dongusune degil, dogrudan Calendar
+API'nin timeMin/singleEvents/orderBy parametrelerine dayanir."""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+from aegis.integrations.google_auth import load_credentials
+
+TIMEZONE = "Europe/Istanbul"
+CALENDAR_ID = "primary"
+
+RECURRENCE_RRULE = {
+    "gunluk": "RRULE:FREQ=DAILY",
+    "haftalik": "RRULE:FREQ=WEEKLY",
+    "aylik": "RRULE:FREQ=MONTHLY",
+}
+
+
+class CalendarApiError(Exception):
+    """Yetkilendirme basarili ama Calendar API istegi reddetti."""
+
+
+class CalendarInputError(Exception):
+    """Tarih/saat metni beklenen formatta degil - kullaniciya gosterilecek net mesaj."""
+
+
+def _parse_date(date_str: str):
+    try:
+        return datetime.strptime(date_str, "%d.%m.%Y").date()
+    except ValueError as exc:
+        raise CalendarInputError(
+            f"Gecersiz tarih formati: '{date_str}' (beklenen: GG.AA.YYYY)"
+        ) from exc
+
+
+def _parse_time(time_str: str):
+    try:
+        return datetime.strptime(time_str, "%H:%M").time()
+    except ValueError as exc:
+        raise CalendarInputError(f"Gecersiz saat formati: '{time_str}' (beklenen: SS:DD)") from exc
+
+
+def add_event(title: str, date: str, time: str | None, recurrence: str | None) -> str:
+    """Google Calendar'a yeni bir etkinlik ekler, Google'in event id'sini doner."""
+    creds = load_credentials()
+    service = build("calendar", "v3", credentials=creds)
+
+    event_date = _parse_date(date)
+    body: dict = {"summary": title}
+
+    if time:
+        event_time = _parse_time(time)
+        start_dt = datetime.combine(event_date, event_time, tzinfo=ZoneInfo(TIMEZONE))
+        end_dt = start_dt + timedelta(hours=1)
+        body["start"] = {"dateTime": start_dt.isoformat()}
+        body["end"] = {"dateTime": end_dt.isoformat()}
+    else:
+        body["start"] = {"date": event_date.isoformat()}
+        body["end"] = {"date": (event_date + timedelta(days=1)).isoformat()}
+
+    rrule = RECURRENCE_RRULE.get(recurrence) if recurrence else None
+    if rrule:
+        body["recurrence"] = [rrule]
+
+    try:
+        created = service.events().insert(calendarId=CALENDAR_ID, body=body).execute()
+    except HttpError as exc:
+        raise CalendarApiError(f"Calendar API ekleme hatasi: {exc}") from exc
+
+    return created["id"]
+
+
+def _describe_event(event: dict) -> dict:
+    start = event.get("start", {})
+    return {
+        "title": event.get("summary", "(basliksiz)"),
+        "when": start.get("dateTime") or start.get("date", ""),
+        "recurring": bool(event.get("recurringEventId") or event.get("recurrence")),
+    }
+
+
+def _list_events(time_min: datetime, time_max: datetime | None, max_results: int) -> list[dict]:
+    creds = load_credentials()
+    service = build("calendar", "v3", credentials=creds)
+
+    params = {
+        "calendarId": CALENDAR_ID,
+        "timeMin": time_min.isoformat(),
+        "maxResults": max_results,
+        "singleEvents": True,
+        "orderBy": "startTime",
+    }
+    if time_max is not None:
+        params["timeMax"] = time_max.isoformat()
+
+    try:
+        result = service.events().list(**params).execute()
+    except HttpError as exc:
+        raise CalendarApiError(f"Calendar API listeleme hatasi: {exc}") from exc
+
+    return [_describe_event(e) for e in result.get("items", [])]
+
+
+def list_upcoming_events(max_results: int = 10) -> list[dict]:
+    """Su andan itibaren yaklasan etkinlikleri doner."""
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    return _list_events(time_min=now, time_max=None, max_results=max_results)
+
+
+def list_all_events(max_results: int = 20) -> list[dict]:
+    """Son 90 gun ile gelecek 365 gun arasindaki etkinlikleri doner - "tum
+    zamanlar" sinirsiz sorgulanmadi (sonsuz tekrarli etkinliklerde pahali/
+    anlamsiz olurdu), makul bir pencereyle sinirlandirildi."""
+    now = datetime.now(ZoneInfo(TIMEZONE))
+    return _list_events(
+        time_min=now - timedelta(days=90),
+        time_max=now + timedelta(days=365),
+        max_results=max_results,
+    )

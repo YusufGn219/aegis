@@ -10,6 +10,26 @@ import uuid
 from aegis.coordinator.coordinator import Coordinator
 from aegis.logging_.event_log import LogEvent, StructuredLogger
 
+CAPABILITY_COMMANDS = {"/yetenekler", "/islevler", "/işlevler", "/help", "/yardim"}
+
+
+def _print_capabilities(coordinator: Coordinator) -> None:
+    """Kayitli Agent/Skill/Tool'lardan otomatik uretilen bir ozet - elle
+    guncel tutulmasi gereken ayri bir liste degil, tool eklendikce/
+    kaldirildikca burasi da otomatik dogru kalir."""
+    print("aegis su an dogal dille sunlari yapabilir:\n")
+    for agent in coordinator.agents.values():
+        for skill in agent.skills:
+            print(f"[{skill.name}]")
+            for tool in skill.tools:
+                print(f"  - {tool.name}: {tool.description}")
+            print()
+    print(
+        "Bir istegi dogal dille yazman yeterli, orn.:\n"
+        '  python -m aegis "Downloads klasorundeki dosyalari listele"\n'
+        '  python -m aegis "ahmet@example.com adresine \'Konu\' konulu \'Govde\' icerikli mail gonder"'
+    )
+
 
 def _collect_feedback(logger: StructuredLogger, request_id: str) -> None:
     """Fine-tuning veri setinde ornekleri etiketlemek icin: kullaniciya
@@ -38,9 +58,14 @@ def main() -> None:
         print('Kullanim: python -m aegis "<istek>"')
         sys.exit(1)
 
+    coordinator = Coordinator()
+
+    if user_message.strip().casefold() in CAPABILITY_COMMANDS:
+        _print_capabilities(coordinator)
+        sys.exit(0)
+
     logger = StructuredLogger()
     request_id = str(uuid.uuid4())
-    coordinator = Coordinator()
     result = coordinator.route(user_message, request_id, logger)
 
     print(result.message)

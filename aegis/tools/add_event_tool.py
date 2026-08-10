@@ -1,23 +1,13 @@
 from __future__ import annotations
 
-import json
-import os
-
+from aegis.integrations.calendar_client import CalendarApiError, CalendarInputError, add_event
+from aegis.integrations.google_auth import GoogleAuthError
 from aegis.tools.base import YOK, RiskLevel, SlotRequirement, Tool, ToolContext, ToolResult
-
-CALENDAR_FILENAME = "calendar.json"
-
-
-def _load_events(calendar_path: str) -> list[dict]:
-    if not os.path.isfile(calendar_path):
-        return []
-    with open(calendar_path, encoding="utf-8") as f:
-        return json.load(f)
 
 
 class AddEventTool(Tool):
     name = "add_event"
-    description = "Sandbox icindeki calendar.json dosyasina yeni bir etkinlik ekler."
+    description = "Google Calendar'a yeni bir etkinlik ekler."
     risk_level = RiskLevel.MEDIUM
 
     def build_schema(self, ctx: ToolContext) -> dict:
@@ -90,11 +80,10 @@ class AddEventTool(Tool):
         time = resolved_args.get("time")
         recurrence = resolved_args.get("recurrence")
 
-        calendar_path = os.path.join(ctx.sandbox_root, CALENDAR_FILENAME)
-        events = _load_events(calendar_path)
-        events.append({"title": title, "date": date, "time": time, "recurrence": recurrence})
-        with open(calendar_path, "w", encoding="utf-8") as f:
-            json.dump(events, f, ensure_ascii=False, indent=2)
+        try:
+            event_id = add_event(title, date, time, recurrence)
+        except (GoogleAuthError, CalendarApiError, CalendarInputError) as exc:
+            return ToolResult(success=False, message=str(exc))
 
         extra = ""
         if time:
@@ -104,5 +93,11 @@ class AddEventTool(Tool):
         return ToolResult(
             success=True,
             message=f"Etkinlik eklendi: {title} ({date}{extra}).",
-            data={"title": title, "date": date, "time": time, "recurrence": recurrence},
+            data={
+                "title": title,
+                "date": date,
+                "time": time,
+                "recurrence": recurrence,
+                "event_id": event_id,
+            },
         )

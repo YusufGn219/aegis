@@ -8,8 +8,8 @@ vermez — önce mesajınızdan gerçek dosya/klasör adlarını çıkarır, mod
 sadece bunlar arasından seçim yaptırır ve riskli işlemlerden (taşıma,
 gönderme gibi) önce size gerçek değerleri gösterip onay ister. Şu an
 desteklenen işlemler: bir klasördeki dosyaları listeleme, bir dosyayı başka
-bir klasöre taşıma, Gmail üzerinden e-posta gönderme ve gelen kutusunu
-özetleme.
+bir klasöre taşıma, Gmail üzerinden e-posta gönderme/gelen kutusu özetleme
+ve Google Calendar üzerinde etkinlik ekleme/listeleme.
 
 ## Gereksinimler
 
@@ -36,33 +36,43 @@ python seed_sandbox.py
 `workspace_sandbox/` içindeki test klasörlerini (Downloads, Arşiv, Belgeler)
 sahte dosyalarla sıfırlar. Tekrar tekrar çalıştırılabilir.
 
-## Gmail Kurulumu (e-posta gönderimi için)
+## Google Kurulumu (Gmail + Calendar için)
 
-`send_email`/`list_inbox_emails` tool'ları Gmail API'ye `gmail.send` +
-`gmail.readonly` scope'uyla bağlanır (silme/etiket değiştirme yetkisi yok).
-`gmail.readonly` Google'ın "hassas scope" sınıfına girer — uygulama
-"Testing" modunda ve hesap test kullanıcısı olarak eklendiği sürece
-Google'ın ayrı bir doğrulama sürecine gerek kalmaz. Tek seferlik kurulum:
+`send_email`/`list_inbox_emails`/`add_event`/`list_events`/
+`list_upcoming_events` tool'ları TEK bir Google OAuth client'ı ve TEK bir
+`token.json` üzerinden 3 scope kullanır: `gmail.send`, `gmail.readonly`,
+`calendar.events` (takvim ayarlarına/paylaşıma dokunmaz, sadece etkinlik
+oluşturma/okuma). Bunların hepsi Google'ın "hassas scope" sınıfına girer —
+uygulama "Testing" modunda ve hesap test kullanıcısı olarak eklendiği
+sürece Google'ın ayrı bir doğrulama sürecine gerek kalmaz. Tek seferlik
+kurulum:
 
 1. [Google Cloud Console](https://console.cloud.google.com/)'da bir proje
-   açın (veya var olanı kullanın) ve **Gmail API**'yi etkinleştirin.
+   açın (veya var olanı kullanın) ve **Gmail API** + **Google Calendar
+   API**'yi etkinleştirin (APIs & Services → Library).
 2. **APIs & Services → OAuth consent screen**'i "External" + "Testing"
-   modunda ayarlayıp gönderim yapılacak Gmail hesabını (`yusufgn.ai.219@gmail.com`)
-   test kullanıcısı olarak ekleyin.
+   modunda ayarlayıp kullanılacak Google hesabını test kullanıcısı olarak
+   ekleyin.
 3. **APIs & Services → Credentials → Create Credentials → OAuth client ID**,
    uygulama tipi **Desktop app** seçin, indirin.
 4. İndirilen dosyayı proje köküne `credentials.json` adıyla koyun (repo'ya
    commit edilmez, `.gitignore`'da).
-5. İlk `send_email` çağrısında tarayıcı açılır, `yusufgn.ai.219@gmail.com`
-   ile giriş yapıp izin verin. Onay sonrası `token.json` oluşur ve
-   sonraki çalıştırmalarda otomatik yenilenir (tekrar tarayıcı açılmaz).
+5. İlk canlı çağrıda (send_email/add_event/...) tarayıcı açılır, hesabınızla
+   giriş yapıp **3 scope'un tamamı için** izin verin. Onay sonrası
+   `token.json` oluşur ve sonraki çalıştırmalarda otomatik yenilenir
+   (tekrar tarayıcı açılmaz).
 
-Farklı bir dosya konumu istiyorsanız `AEGIS_GMAIL_CREDENTIALS_PATH` /
-`AEGIS_GMAIL_TOKEN_PATH` ortam değişkenleriyle override edebilirsiniz.
+Farklı bir dosya konumu istiyorsanız `AEGIS_GOOGLE_CREDENTIALS_PATH` /
+`AEGIS_GOOGLE_TOKEN_PATH` ortam değişkenleriyle override edebilirsiniz.
 
-Scope seti değiştiğinde (örn. ileride yeni bir Gmail izni eklenirse) var
+Scope seti değiştiğinde (örn. ileride yeni bir Google izni eklenirse) var
 olan `token.json` eski scope'larla üretilmiş olduğundan geçersiz kalır —
 dosyayı silip ilk çağrıda tarayıcı onayını tekrar vermeniz gerekir.
+
+Takvim etkinlikleri `Europe/Istanbul` saat diliminde oluşturulur
+(`aegis/integrations/calendar_client.py`'de sabit); saat verilmezse
+gün-boyu (all-day) etkinlik oluşur, tekrar (`gunluk`/`haftalik`/`aylik`)
+Google'ın kendi RRULE mekanizmasına devredilir.
 
 ## Çalıştırma
 
@@ -71,7 +81,7 @@ python -m aegis "Downloads klasöründeki dosyaları listele"
 python -m aegis "rapor.pdf dosyasını Arşiv klasörüne taşı"
 ```
 
-`move_file`/`send_email` gibi işlemler öncesinde onay ister (`[y/N]`).
+`move_file`/`send_email`/`add_event` gibi işlemler öncesinde onay ister (`[y/N]`).
 
 **E-posta konu/gövdesi tek tırnak içinde yazılmalı** — `aegis` bu metni
 LLM'in kendi kelimeleriyle üretmesine izin vermez, sadece sizin mesajınızda
